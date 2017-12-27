@@ -1,0 +1,50 @@
+﻿[ 
+        {
+        "id": "18831",
+        "self": "http://usmrtpwjirq01.corp.itauinternational.com:81/rest/api/2/issueLink/18831",
+        "type": {
+          "id": "10020",
+          "name": "Relationship",
+          "inward": "is related to",
+          "outward": "relates to",
+          "self": "http://usmrtpwjirq01.corp.itauinternational.com:81/rest/api/2/issueLinkType/10020"
+        },
+        "outwardIssue": {
+          "id": "226881",
+          "key": "HLP-36580",
+          "self": "http://usmrtpwjirq01.corp.itauinternational.com:81/rest/api/2/issue/226881",
+          "fields": {
+            "summary": "kill it",
+            "status": {
+              "self": "http://usmrtpwjirq01.corp.itauinternational.com:81/rest/api/2/status/1",
+              "description": "The issue is open and ready for the assignee to start work on it.",
+              "iconUrl": "http://usmrtpwjirq01.corp.itauinternational.com:81/images/icons/statuses/open.png",
+              "name": "Open",
+              "id": "1",
+              "statusCategory": {
+                "self": "http://usmrtpwjirq01.corp.itauinternational.com:81/rest/api/2/statuscategory/2",
+                "id": 2,
+                "key": "new",
+                "colorName": "blue-gray",
+                "name": "New"
+              }
+            },
+            "priority": {
+              "self": "http://usmrtpwjirq01.corp.itauinternational.com:81/rest/api/2/priority/5",
+              "iconUrl": "http://usmrtpwjirq01.corp.itauinternational.com:81/images/icons/priorities/trivial.png",
+              "name": "Low",
+              "id": "5"
+            },
+            "issuetype": {
+              "self": "http://usmrtpwjirq01.corp.itauinternational.com:81/rest/api/2/issuetype/1",
+              "id": "1",
+              "description": "A problem which impairs or prevents the functions of the product.",
+              "iconUrl": "http://usmrtpwjirq01.corp.itauinternational.com:81/images/icons/issuetypes/bug.png",
+              "name": "Bug",
+              "subtask": false
+            }
+          }
+        }
+      }
+
+]
