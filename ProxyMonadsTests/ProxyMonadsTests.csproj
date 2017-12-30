@@ -37,9 +37,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CommonExtensions.Helpers">
-      <HintPath>..\packages\CommonExtensions.Helpers.2.4.6\lib\net452\CommonExtensions.Helpers.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="CommonExtensions.Helpers, Version=2.4.7.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\CommonExtensions.Helpers.2.4.7\lib\net452\CommonExtensions.Helpers.dll</HintPath>
     </Reference>
     <Reference Include="DocumentFormat.OpenXml">
       <HintPath>..\packages\DocumentFormat.OpenXml.2.7.2\lib\net40\DocumentFormat.OpenXml.dll</HintPath>

@@ -264,20 +264,19 @@ namespace Jira {
         return issue.transitions.Where(t => t.name.ToLower() == transitionOrPropertyName.ToLower()).Counter(1).ToArray();
       } catch(Exception exc) {
         try {
-          return issue.FindTransitionByProperty(transitionOrPropertyName).Counter(1, _ => { throw new Exception("No 'next' transition found by property"); }, c => { throw new TooManyTransitionsException(issue); }).Select(t => t.Item1).ToArray();
+          return issue.FindTransitionByProperty(transitionOrPropertyName).Counter(1, _ => { throw new TransitionsException("No 'next' transition found by property"); }, c => { throw new TooManyTransitionsException(issue); }).Select(t => t.Item1).ToArray();
         } catch(TooManyTransitionsException) {
           throw;
-        } catch(Exception exc2) {
+        } catch(TransitionsException exc2) {
           if(throwNotFound)
             throw new AggregatedException(exc2, exc);
           return new IssueTransitions.Transition[0];
         }
       }
     }
-    class TooManyTransitionsException :Exception {
-      public TooManyTransitionsException(IssueClasses.Issue issue) : base(new { error = "More then one 'next' transition found by property", issue } + "") {
-
-      }
+    class TransitionsException :Exception { public TransitionsException(string message) : base(message) { } }
+    class TooManyTransitionsException :TransitionsException {
+      public TooManyTransitionsException(IssueClasses.Issue issue) : base(new { error = "More then one 'next' transition found by property", issue } + "") { }
     }
     public static IList<IssueTransitions.Transition> ErrorTransition(this IssueClasses.Issue issue, bool throwNotFound = true) {
       return issue.FindTransitionByNameOrProperty("error", throwNotFound);
