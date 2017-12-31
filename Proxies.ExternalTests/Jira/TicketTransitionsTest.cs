@@ -170,8 +170,8 @@ namespace Proxies.ExternalTests {
       Trace.WriteLine(ticket);
     }
     [TestMethod]
-    public async Task GetTicketTransitions_M() {
-      var ticket = (await "PIZ-92".ToJiraTicket().GetIssueAsync()).Value.FastForwardTransitions(false);
+    public async Task FastForwardTransitions_M() {
+      var ticket = (await "PIZ-109".ToJiraTicket().GetIssueAsync()).Value.FastForwardTransitions(false);
       Trace.TraceInformation(ticket.ToString());
     }
     [TestMethod]
