@@ -24,7 +24,7 @@ namespace Jira {
   public static partial class Rest {
 
     static Rest() {
-      if (RestMonad.UseSessionID) {
+      if(RestMonad.UseSessionID) {
         var tcs = new TaskCompletionSource<string>();
         var user = JiraMonad.JiraPowerUser();
         JiraMonad.SessionIDs[user] = tcs.Task;
@@ -69,7 +69,7 @@ namespace Jira {
     private const string EXEC_COUNT_FIELD = "ExecCount";
     private const string ERROR_COUNT_FIELD = "ErrorCount";
     #region Self Test
-    class SelfTest : Foundation.Testable<SelfTest> {
+    class SelfTest :Foundation.Testable<SelfTest> {
       protected override async Task<ExpandoObject> _RunTestAsync(ExpandoObject parameters, params Func<ExpandoObject, ExpandoObject>[] merge) {
         return await TestHostAsync(null, async (p, m) => {
           var b = await base._RunTestAsync(p, m);
@@ -86,7 +86,7 @@ namespace Jira {
     }
     #endregion
 
-    public class CustomProperties : Dictionary<string, object> { }
+    public class CustomProperties :Dictionary<string, object> { }
     public enum IssueFielder { comment, components, issuelinks, status, issuetype }
     public enum IssueExpander { changelog, transitions, renderedFields, names }
     public enum SmsValue { Next, Error, Back }
@@ -99,7 +99,7 @@ namespace Jira {
 
     #region Path Factory - Old style
     static string AddSlash(string path) {
-      if (!Regex.IsMatch(path, "/$")) return path + "/";
+      if(!Regex.IsMatch(path, "/$")) return path + "/";
       return path;
     }
     static string IssueTicketPath(string ticket, string apiPath = null) { return AddSlash(apiPath ?? (ApiPath + "issue/")) + ticket; }
@@ -216,7 +216,7 @@ namespace Jira {
       dynamic jPost = JsonConvert.DeserializeObject(JsonConvert.SerializeObject(post.Value, settings));
       customProperties.ToList().ForEach(cp => {
         var jiraValue = cp.GetJiraValue();
-        if (jiraValue != null)
+        if(jiraValue != null)
           jPost.fields[cp.field.id] = JToken.FromObject(jiraValue);
       });
       return await post.PostAsync(pathFactory, (object)jPost, settings, doPut);
@@ -439,7 +439,7 @@ namespace Jira {
         .Select(t => new { t = t.Item1, p = t.Item2 })
         .Select(async x => {
           var goNextValue = int.Parse(x.p.value);
-          if (goNextCondition(execCount, goNextValue)) {
+          if(goNextCondition(execCount, goNextValue)) {
             return new[] { await jiraTicket.PostIssueTransitionAsync(x.t, IssueClasses.Issue.DoCode(field.ToExpando(execCount).Merge(new { next = x.t.to.name }).Stringify()) + comment, null) };
           }
           return new RestMonad<IssueTransitions.Transition>[0];
@@ -464,13 +464,13 @@ namespace Jira {
         .Counter(1, new Exception(new { ticket = jiraTicket, transPropName, message = "Not found" } + ""), null)
         .Single();
       var transPropValueInt = 0;
-      if (!int.TryParse(transPropValue.value, out transPropValueInt))
+      if(!int.TryParse(transPropValue.value, out transPropValueInt))
         throw new Exception(new { ticket = jiraTicket, transPropName, transPropValue, message = "Is not a integer" } + "");
-      if (transPropValueInt < 0)
+      if(transPropValueInt < 0)
         throw new Exception(new { ticket = jiraTicket, transPropName, transPropValue, message = "Is less then Zero" } + "");
       var step = transPropValueInt > 0 ? 1 : -1;
       var execCount = issue.ExtractCustomField<int>(EXEC_COUNT_FIELD)[0] + step;
-      if (execCount < 0)
+      if(execCount < 0)
         throw new Exception(new { ticket = jiraTicket.Value, field = new { name = EXEC_COUNT_FIELD, value = execCount }, transPropName, transPropValue, message = "Counter < 0" } + "");
       await jiraTicket.PutIssueAsync(MakeUpdateComment(IssueClasses.Issue.DoCode(EXEC_COUNT_FIELD.ToExpando(execCount).Merge(new { transPropValueInt }).Stringify()) + comment), new object[] { EXEC_COUNT_FIELD, execCount });
       var rm = step == 1
@@ -553,19 +553,19 @@ namespace Jira {
     #region Resolvers
     private static KeyValuePair<string, object> ResolveIssueCustomFieldValue(this RestMonad<JiraNewIssue> rest, string fieldId, string fieldValue) {
       int fieldValueId;
-      if (!int.TryParse(fieldValue, out fieldValueId)) {
+      if(!int.TryParse(fieldValue, out fieldValueId)) {
         Func<string> pathFactory = () => IssuePath(rest.ApiAddress);
         var resp = rest.PostAsync(new Dictionary<string, object> { { fieldId, "XXX" } }, pathFactory).Result;
         fieldValueId = resp.HandleExecutedAsync((rsp, json) => { throw new InvalidOperationException("Jira error was expected."); }, (rex, t) => {
           var strRegex = @"(?<id>\d+)\[(?<name>[^]]+)]";
           var message = rex.Value.Message;
-          if (!message.StartsWith(fieldId)) throw new InvalidDataException("Unexpected format returned from operation:" + System.Environment.NewLine + new string('*', 40) + System.Environment.NewLine + message);
+          if(!message.StartsWith(fieldId)) throw new InvalidDataException("Unexpected format returned from operation:" + System.Environment.NewLine + new string('*', 40) + System.Environment.NewLine + message);
           var options = Regex.Matches(message, strRegex).Cast<Match>().Select(m => new {
             id = m.Groups["id"].Value,
             value = m.Groups["name"].Value
           }).ToArray();
           var option = options.SingleOrDefault(o => Core.FilterCompare(o.value, fieldValue));
-          if (option == null) throw new KeyNotFoundException(new { fieldValue, error = "Not found in collection:" + System.Environment.NewLine + string.Join(System.Environment.NewLine, options.Select(o => o + "")) } + "");
+          if(option == null) throw new KeyNotFoundException(new { fieldValue, error = "Not found in collection:" + System.Environment.NewLine + string.Join(System.Environment.NewLine, options.Select(o => o + "")) } + "");
           return int.Parse(option.id);
         }, null).Result;
       }
@@ -599,11 +599,11 @@ namespace Jira {
     private static async Task<RestMonad<JiraNewIssue>> ResolveIssueTypeName(this RestMonad<JiraNewIssue> newIssuePost, Action<JiraNewIssue, int> resolver) {
       JiraNewIssue newIssue = newIssuePost.Value;
       var newIssueTypeId = newIssue.fields.issuetype.id;
-      if (!string.IsNullOrWhiteSpace(newIssueTypeId)) {
+      if(!string.IsNullOrWhiteSpace(newIssueTypeId)) {
         int issueTypeId;
-        if (!int.TryParse(newIssueTypeId, out issueTypeId)) {
+        if(!int.TryParse(newIssueTypeId, out issueTypeId)) {
           issueTypeId = int.Parse((await newIssuePost.GetIssueTypesAsync(newIssueTypeId)).Value.Select(p => p.id).DefaultIfEmpty("0").SingleOrDefault());
-          if (issueTypeId == 0)
+          if(issueTypeId == 0)
             throw new Exception(new { newIssueTypeId, address = newIssuePost.FullAddress(), message = "Issue Type does not exists in JIRA." } + "");
           resolver(newIssuePost.Value, issueTypeId);
           newIssue.fields.issuetype.id = issueTypeId + "";
@@ -613,13 +613,13 @@ namespace Jira {
     }
     public static async Task<RestMonad<JiraNewIssue>> ResolveComponents(this RestMonad<JiraNewIssue> restMonad) {
       var components = restMonad.Value.fields.components;
-      if (components == null || components.Count == 0) return restMonad;
+      if(components == null || components.Count == 0) return restMonad;
       var f = restMonad.Value.fields;
       Func<IssueClasses.Component, bool> mustResolve = cmp => string.IsNullOrEmpty(cmp.id);
       var resolved = f.components.Where(c => !mustResolve(c)).ToArray();
       var resolving = f.components.Where(mustResolve).ToArray();
-      if (resolving.Any()) {
-        if (resolving.Any(c => string.IsNullOrEmpty(c.name)))
+      if(resolving.Any()) {
+        if(resolving.Any(c => string.IsNullOrEmpty(c.name)))
           throw new Exception("Component name must be provided in order to resolve to it's id.");
         var componentIds = resolving.Select(c => c.name).ToArray();
         var projectIdOrKey = new[] { f.project.id, f.project.key }.First(s => !string.IsNullOrWhiteSpace(s));
@@ -632,7 +632,7 @@ namespace Jira {
       return restMonad;
     }
     public static async Task<string[]> ResolveComponents(this RestMonad restMonad, string project, IList<string> components) {
-      if (components == null || components.Count == 0) return new string[0];
+      if(components == null || components.Count == 0) return new string[0];
       var resolvedComponents = (await restMonad.GetArrayAsync<IssueClasses.Component>(ProjectComponentsPath(project), true, field => new[] { field.name }, components.ToArray())).Value;
       var excs = (from c in components
                   join rc in resolvedComponents on c.ToLower() equals rc.name.ToLower() into gc
@@ -640,7 +640,7 @@ namespace Jira {
                   where g == null
                   select new Exception(new { component = c, message = "Not found" } + "")
                   ).ToArray();
-      if (excs.Any()) throw new AggregateException(excs);
+      if(excs.Any()) throw new AggregateException(excs);
       return resolvedComponents.Select(c => c.id).ToArray();
     }
 
@@ -676,7 +676,7 @@ namespace Jira {
       , Action<JiraNewIssue> issueAction = null
       ) {
       var newIssue = JiraNewIssue.Create(project, issueType, summary, description, assignee, reporter, components);
-      if (issueAction != null)
+      if(issueAction != null)
         issueAction(newIssue);
       return await new RestMonad<JiraNewIssue>(newIssue, rest)
         .PostIssueAsync(customProperties, comments, fileNames, webLinks);
@@ -689,11 +689,11 @@ namespace Jira {
       var newIssue = await newIssuePost.PostIssueAsync(customProperties);
       var attachments = newIssue.PostTicketAttachment(fileNames);
       var ticketPost = newIssue.Clone<JiraTicket<string>, string>(ni => ni.key);
-      if (webLinks != null) {
+      if(webLinks != null) {
         var wlTasks = webLinks.Select(async wl => await ticketPost.PostWebLinkAsync(wl.Key.AbsoluteUri, wl.Value)).ToArray();
         await Task.WhenAll(wlTasks);
       }
-      if (!string.IsNullOrWhiteSpace(comments)) {
+      if(!string.IsNullOrWhiteSpace(comments)) {
         await ticketPost.PostCommentsAsync(comments);
       }
       return await newIssue.GetIssueAsync();
@@ -709,9 +709,9 @@ namespace Jira {
         : issue.transitions.Count == 1
         ? issue.transitions
         : issue.NextTransition(false);
-      if (trans.IsEmpty())
+      if(trans.IsEmpty())
         throw new Exception(new { issue, error = "No 'Next' transition found" } + "");
-      if (trans.Count > 2)
+      if(trans.Count > 2)
         throw new Exception(new { To_Many_Next_Transitions = trans.ToJson(), jiraTicket } + "");
       return await PostIssueTransitionAsync(jiraTicket, trans.Single().id, comment, doLock, onError);
     }
@@ -732,7 +732,7 @@ namespace Jira {
       ExceptionDispatchInfo edi = null;
       try {
         return await jiraTicket.PostIssueTransitionAsync(transition, Jira.Json.IssueClasses.Issue.LockComment(comment, doLock), onError);
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         edi = ExceptionDispatchInfo.Capture(exc);
       }
 
@@ -746,7 +746,7 @@ namespace Jira {
       , string comment
       , Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<IssueTransitions.Transition>> onError = null) {
 
-      if (!string.IsNullOrWhiteSpace(comment)) {
+      if(!string.IsNullOrWhiteSpace(comment)) {
         await jiraTicket.PostCommentsAsync(comment);
         comment = null;
       }
@@ -777,7 +777,7 @@ namespace Jira {
     }
 
     public static async Task<RestMonad<string>> PostWatcherAsync(this JiraTicket<string> ticket, string watcherUserName) {
-      if ((await ticket.Clone<RestMonad<User>, User>(User.FromUserName(watcherUserName)).GetAsync()).Value == null)
+      if((await ticket.Clone<RestMonad<User>, User>(User.FromUserName(watcherUserName)).GetAsync()).Value == null)
         throw new Exception("User [" + watcherUserName + "] is not found in JIRA");
       return await (await ticket.PostIssueAsync(tckt => IssueWatchersPath()(tckt, ticket.ApiAddress), watcherUserName))
        .HandleExecutedAsync((response, json) => response.Clone<RestMonad<string>, string>(json), null, null);
@@ -867,9 +867,9 @@ namespace Jira {
     }
     static Attachment[] PostTicketAttachment(string jiraHost, string jiraRestUri, string userName, string password
       , params string[] fileNames) {
-      if (fileNames == null || !fileNames.Any()) return new Attachment[0];
+      if(fileNames == null || !fileNames.Any()) return new Attachment[0];
       Guard.NotNull(() => jiraHost, jiraHost); Guard.NotNull(() => jiraRestUri, jiraRestUri); Guard.NotNull(() => userName, userName); Guard.NotNull(() => password, password);
-      using (var client = new HttpClient()) {
+      using(var client = new HttpClient()) {
         client.BaseAddress = new Uri(RestMonad.EnsurePath(jiraHost));
         client.InitBasicAuthenticationHeader(userName, password);
         client.DefaultRequestHeaders.Accept.Clear();
@@ -891,7 +891,7 @@ namespace Jira {
             .Result.ToJiraTicket()
             .HandleExecutedAsync((r, json) => JsonConvert.DeserializeObject<Attachment[]>(json), null, null).Result
             ).Result;
-        } catch (Exception exc) {
+        } catch(Exception exc) {
           throw new Exception(new { fileNames = string.Join(",", fileNames) } + "", exc);
         }
       }
@@ -918,7 +918,7 @@ namespace Jira {
     public static async Task<RestMonad<IssueClasses.Issue>> CloneIssueAndLink(this RestMonad<IssueClasses.Issue> issue, string project2, string issueType2, Dictionary<string, object> customFields, params string[] fields) {
       customFields = new Dictionary<string, object>(customFields ?? new Dictionary<string, object>(), StringComparer.OrdinalIgnoreCase);
       var links = issue.Value.HasLinks(project2, issueType2).Take(1);
-      if (links.Any())
+      if(links.Any())
         return await links.First().key.ToJiraTicket(issue).GetIssueAsync();
       var properties = (from f in fields ?? new string[0]
                         join p in issue.Value.fields.GetType().GetAllProperties().ToArray() on f.ToLower() equals p.Name.ToLower() into gj
@@ -928,7 +928,7 @@ namespace Jira {
         .Select(field => new { field, value = issue.Value.ExtractCustomFieldRaw(field, true, false) })
         .Where(x => x.value != null)
         .ForEach(field => field.value.ForEach(value => {
-          if (!customFields.ContainsKey(field.field))
+          if(!customFields.ContainsKey(field.field))
             customFields.Add(field.field, value);
         }));
       var jiraTicket = issue.Clone<JiraTicket<string>, string>(issue.Value.key);
@@ -938,9 +938,9 @@ namespace Jira {
          select new { p1, Value = p2.GetValue(issue.Value.fields) }
          ).ForEach(x => x.p1.SetValue(newIssue.fields, x.Value));
         var tt = newIssue.fields.timetracking;
-        if (tt != null) tt.originalEstimate = null;
+        if(tt != null) tt.originalEstimate = null;
       };
-      var issue2 = (await jiraTicket.PostIssueAsync(project2, issueType2, issue.Value.fields.summary, "", "", "", null, customFields, "", null, null, mapProps)).Value;
+      var issue2 = (await jiraTicket.PostIssueAsync(project2, issueType2, issueType2 + "::" + issue.Value.fields.summary, "", "", "", null, customFields, "", null, null, mapProps)).Value;
       await jiraTicket.PostIssueLinkAsync(issue2.key, issue2.key + " was created");
       return issue.Switch(issue2);
     }
@@ -977,7 +977,7 @@ namespace Jira {
         (x, y) => x.Switch(Task.FromResult(JsonConvert.DeserializeObject<User>(y))),
           (hrm, t) => {
             var error = JiraMonad.ParseJiraError(hrm.Value.Json);
-            if (error.Contains("already exists"))
+            if(error.Contains("already exists"))
               return hrm.Switch(getUser());
             throw hrm.Value;
           }, false);
@@ -1045,14 +1045,14 @@ namespace Jira {
       //Assert.Inconclusive("Remove to delete project");
       var errors = new List<Exception>();
       var dp = await (from p in WithErrorMonad.Create(() => rm.DeleteProjectAsync(projectKey))()
-                      select new { issueTypeSchemeId, error=readError(p.error) }
+                      select new { issueTypeSchemeId, error = readError(p.error) }
                       );
       var dit = await WithErrorMonad.Create(() => DeleteIssueTypeSchemeAsync(issueTypeSchemeId))();
 
       var dws = await WithErrorMonad.Create(() => DeleteWorkflowSchemeAsync(workflowSchemeId))();
       var dwfs = await from workflow in workflows
                        from t in WithErrorMonad.Create(() => DeleteWorkflowAsync(workflow))()
-                       select (workflow, t.value,  readError(t.error));
+                       select (workflow, t.value, readError(t.error));
 
       var ditss = await from xd in WithErrorMonad.Create(() => DeleteIssueTypeScreenSchemeAsync(projectIssueTypeScreenScheme.id))()
                         select new { projectIssueTypeScreenScheme, xd.value, error = readError(xd.error) };
@@ -1077,11 +1077,11 @@ namespace Jira {
           screenIds = screenIds.Flatten()
         },
         delete = new { dp, dit, dws, dwfs, ditss, dss, ds, dsbp },
-        errors  = errors.Select(e=>e.ToMessages()).ToArray()
+        errors = errors.Select(e => e.ToMessages()).ToArray()
       });
       return jo.ToRestMonad(rm);
-      Exception readError(Exception exc)      {
-        if (exc != null) errors.Add(exc);
+      Exception readError(Exception exc) {
+        if(exc != null) errors.Add(exc);
         return exc;
       }
     }
@@ -1132,7 +1132,7 @@ namespace Jira {
           rm1.HandleExecutedAsync((resp, json) => {
             var jo = ((JContainer)(JsonConvert.DeserializeObject(json)));
             var a = jo.With("projects").With(0).With("issuetypes").With(0).With("fields");
-            if (a == null) throw new HttpRestException(resp, new { DoesNotExist = RestMonad.SerializeObject(restMonad.Value) } + "");
+            if(a == null) throw new HttpRestException(resp, new { DoesNotExist = RestMonad.SerializeObject(restMonad.Value) } + "");
             U[] customField = a.ExtractFieldsMeta(valueProjector, nameProjector);
             return restMonad.Switch(customField);
           })
@@ -1155,7 +1155,7 @@ namespace Jira {
           rm1.HandleExecutedAsync((resp, json) => {
             var jo = ((JContainer)(JsonConvert.DeserializeObject(json)));
             var a = jo.With("fields");
-            if (a == null) throw new HttpRestException(restMonad.BaseAddress + "", new { property = "fields", DoesNotExist = RestMonad.SerializeObject(restMonad.Value), @in = resp } + "");
+            if(a == null) throw new HttpRestException(restMonad.BaseAddress + "", new { property = "fields", DoesNotExist = RestMonad.SerializeObject(restMonad.Value), @in = resp } + "");
             U[] customField = a.ExtractFieldsMeta(valueProjector, nameProjector);
             return restMonad.Switch(customField);
           })
@@ -1199,7 +1199,7 @@ namespace Jira {
         }, (rex, t) => {
           var regex = @"(?<id>\d+)\[(?<name>[^]]+)]";
           var message = rex.Value.Message;
-          if (!message.StartsWith(fieldId))
+          if(!message.StartsWith(fieldId))
             throw HttpRestException.Create(rex.Value.Address, new InvalidDataException("Unexpected format returned from operation:" + System.Environment.NewLine + new string('*', 40) + System.Environment.NewLine + message));
           return rest.Switch(Regex.Matches(message, regex).Cast<Match>().Select(m => projector(m.Groups["id"].Value, m.Groups["name"].Value)).ToArray());
         }, null)
@@ -1281,7 +1281,7 @@ namespace Jira {
         public string Assignee { get; set; }
         public string Reporter { get; set; }
 
-        class ExcludeAttribute : Attribute { }
+        class ExcludeAttribute :Attribute { }
         [Exclude]
         public Dictionary<string, object> CustomFields { get; set; } = new Dictionary<string, object>();
         [Exclude]
@@ -1320,14 +1320,14 @@ namespace Jira {
       var queryParams = new[] {
         Tuple.Create("jql", filter.Jql.ToString()),
         Tuple.Create("validateQuery", "true") }.ToList();
-      if (filter.MaxResults != 0)
+      if(filter.MaxResults != 0)
         queryParams.Add(Tuple.Create("maxResults", filter.MaxResults + ""));
       filter.Fields.YieldNoNull()
         .ForEach(fields => queryParams.Add(Tuple.Create("fields", string.Join(",", fields))));
       var expand = new List<string>();
-      if (filter.ExpandTransitions) expand.Add(IssueExpander.transitions + "");
-      if (filter.ExpandChangelog) expand.Add(IssueExpander.changelog + "");
-      if (expand.Any())
+      if(filter.ExpandTransitions) expand.Add(IssueExpander.transitions + "");
+      if(filter.ExpandChangelog) expand.Add(IssueExpander.changelog + "");
+      if(expand.Any())
         queryParams.Add(Tuple.Create("expand", string.Join(",", expand)));
       return await restMonad.GetAsync<SearchResult<TIssue>>(SearchPath(queryParams.ToArray()), onError);
     }
@@ -1347,7 +1347,7 @@ namespace Jira {
         }
       }));
       Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<SearchResult<object>>> onObjectError = (exc, t) => {
-        if (onError != null) {
+        if(onError != null) {
           onError(exc, t);
           throw new InvalidOperationException("Proveded \"onError\" handler should have thrown an exception.");
         }
@@ -1410,7 +1410,7 @@ namespace Jira {
 
     public static async Task<RestMonad<AuthSession>> GetAuthSession(this RestMonad restMonad) {
       return await restMonad.GetAsync(s => s + authSessionPath, null, (rm, re) => {
-        if (rm.Value.Response.StatusCode == HttpStatusCode.Unauthorized)
+        if(rm.Value.Response.StatusCode == HttpStatusCode.Unauthorized)
           return rm.Switch(new AuthSession());
         throw rm.Value;
       }, null);
