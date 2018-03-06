@@ -25,10 +25,6 @@ namespace Jira.Json {
       public string key { get; set; }
     }
 
-    public class Priority {
-      public string id { get; set; }
-    }
-
     public class Version {
       public string id { get; set; }
     }
