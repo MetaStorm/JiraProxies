@@ -158,6 +158,7 @@ namespace Jira.Json {
         }
       }
       public object[] ExtractCustomFieldRaw(string field, bool throwNotFound, bool throwIfEmpty) {
+        if (field.ToLower() == "id") return new object[] { id };
         var custom = fields.custom.Where(kv => kv.Key.ToLower() == field.ToLower());
         if (throwNotFound)
           custom = custom

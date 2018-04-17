@@ -87,5 +87,10 @@ namespace ProxiesTest {
       };
       return map(getField(applicationsServices), getField(ioc_apps_assist_branches), getField(ioc_apps_user_identification));
     }
+    [TestMethod]
+    public async Task ExtractId() {
+      var issue = (await "EC-59".ToJiraTicket().GetIssueAsync()).Value;
+      Assert.AreEqual("407807", issue.ExtractCustomFieldRaw("Id",true,true).Single());
+    }
   }
 }
