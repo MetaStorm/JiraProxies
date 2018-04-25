@@ -482,11 +482,22 @@ namespace Jira.Tests {
     }
     [TestMethod]
     public async Task CustomFieldSet_M() {
-      //Assert.Inconclusive("For manual testing only");
+      Assert.Inconclusive("For manual testing only");
       var fieldName = "CoSigner-1 eMail";
       var fieldValue = "dimok@hot.com";
       var ticket = "SUI-1199";// 668";
       await ticket.ToJiraTicket().PutIssueFieldsAsync(fieldName, fieldValue, "eMail Main Signer", "main_" + fieldValue);
+      var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;
+      var fieldValue2 = issue.ExtractCustomField<string>(fieldName).Single();
+      Assert.AreEqual(fieldValue, fieldValue2);
+    }
+    [TestMethod]
+    public async Task CustomFieldSetCheckbox_M() {
+      //Assert.Inconclusive("For manual testing only");
+      var fieldName = "Tax Validation 1";
+      var fieldValue = "none";
+      var ticket = "BPM-4";// 668";
+      await ticket.ToJiraTicket().PutIssueFieldsAsync(fieldName, fieldValue);
       var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;
       var fieldValue2 = issue.ExtractCustomField<string>(fieldName).Single();
       Assert.AreEqual(fieldValue, fieldValue2);
