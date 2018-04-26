@@ -493,14 +493,25 @@ namespace Jira.Tests {
     }
     [TestMethod]
     public async Task CustomFieldSetCheckbox_M() {
-      //Assert.Inconclusive("For manual testing only");
-      var fieldName = "Tax Validation 1";
+      Assert.Inconclusive("For manual testing only");
+      var fieldName = "Tax Validation 6";
       var fieldValue = "none";
-      var ticket = "BPM-4";// 668";
+      var ticket = "BPM-7";// 668";
       await ticket.ToJiraTicket().PutIssueFieldsAsync(fieldName, fieldValue);
       var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;
       var fieldValue2 = issue.ExtractCustomField<string>(fieldName).Single();
       Assert.AreEqual(fieldValue, fieldValue2);
+    }
+    [TestMethod]
+    public async Task CustomFieldEmpty_M() {
+      //Assert.Inconclusive("For manual testing only");
+      var fieldName = "Validation Status 6";
+      var fieldValue = "";
+      var ticket = "BPM-7";// 668";
+      await ticket.ToJiraTicket().PutIssueFieldsAsync(fieldName, fieldValue);
+      var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;
+      var fieldValue2 = issue.ExtractCustomField<string>(fieldName).Single();
+      Assert.AreEqual(" ", fieldValue2);
     }
     [TestMethod]
     public async Task IsIssueLinked() {

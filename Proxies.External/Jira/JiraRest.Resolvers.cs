@@ -21,9 +21,9 @@ namespace Jira {
       var valueFields = new[] { "radiobuttons", "cascadingselect", "select" };
       return (
         from cp in (await ResolveCustomFields(newIssuePost, customProperties)).Value
-        from issueJson in new[] { (Func<string>)(() => newIssuePost.Value.fields.project.key + " : " + newIssuePost.Value.fields.issuetype.name ) }
+        from issueJson in new[] { (Func<string>)(() => newIssuePost.Value.fields.project.key + " : " + newIssuePost.Value.fields.issuetype.name) }
         from customFields in new[] { issueCustomFields }
-        let customField = customFields.SingleOrDefault(cf => !valueFields.Contains(cp.field.schema.jiraType) && Core.FilterCompareAny(new[] { cf.name, cf.id }, cp.field.id))
+        let customField = cp.field.schema.jiraType == "multicheckboxes" ? null : customFields.SingleOrDefault(cf => !valueFields.Contains(cp.field.schema.jiraType) && Core.FilterCompareAny(new[] { cf.name, cf.id }, cp.field.id))
         let value = customField == null ? null : customField.values
           .Where(cfv => Core.FilterCompareAll(new[] { cfv.name, cfv.id }, cp.GetRawValue()))
           .ThrowIfEmpty(new Exception(new { CustomField = new { cp.field.name, cp.field.id }, WithValue = cp.GetRawValue().ToJson(), IsNotAllowedInIssue = issueJson() } + ""))

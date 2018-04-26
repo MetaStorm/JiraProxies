@@ -46,10 +46,11 @@ namespace Jira.Json {
         case "string":
         case "option":
         switch (schema.jiraType) {
+          case "readonlyfield":
+          return string.IsNullOrEmpty(value + "") ? " " : value + "";
           case "select":
           case "radiobuttons": return new { value = ExtractValue(value) };
           case "multiselect":
-          case "multicheckboxes":
           case "cascadingselect":
           var jValue = value as JObject;
           if (jValue == null) return value;
@@ -62,15 +63,21 @@ namespace Jira.Json {
         var type = schema.items;
         switch (schema.jiraType) {
           case "multiselect":
-          case "multicheckboxes":
           var jArray = new[] { value as JArray }
             .Where(ja => ja != null)
             .Select(ja => ja.ToArray())
             .FirstOrDefault();
-          var values = ((object[])(jArray ?? (object)value ?? new object[0]))
+          var values = ((object[])(jArray ?? (value.GetType().IsArray ? (object)value : new[] { value }) ?? new object[0]))
             .Select(v => new { id = ValueFactory(v, new Field.Schema { type = schema.items, custom = schema.custom }) })
             .ToArray();
           return values;
+          case "multicheckboxes":
+          Passager.ThrowIf(() => !(value is string));
+          var valuesCB = new[] { value + "" }
+            .Where(s => !s.IsNullOrWhiteSpace())
+            .Select(v => new { value })
+            .ToArray();
+          return valuesCB;
           default: return new { id = ExtractValue(value) };
         }
         case "option-with-child":
