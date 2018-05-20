@@ -503,6 +503,27 @@ namespace Jira.Tests {
       Assert.AreEqual(fieldValue, fieldValue2);
     }
     [TestMethod]
+    public async Task CustomFieldsSet_M() {
+      Assert.Inconclusive("For manual testing only");
+      var ticket = "BPM-1";// 668";
+      var fields = new[] {
+        "Tax Validation 1","none",
+        "Tax Validation 2","none",
+        "Signers Info", "Signers Info value",
+      };
+      var fieldsClean = fields.Buffer(2).Select(b => new[] { b[0], "" }).Concat().ToArray();
+      await ticket.ToJiraTicket().PutIssueFieldsAsync(fieldsClean);
+      await ticket.ToJiraTicket().PutIssueFieldsAsync(fields);
+      var nameValue = fields.Buffer(2).ToArray();
+      var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;
+      nameValue.ForEach(nv => {
+        issue.ExtractCustomField<string>(nv[0]).ForEach(v => {
+          Assert.AreEqual(nv[1], v, nv[0]);
+          Console.WriteLine($"[{nv.Flatten("]:")} - Ok");
+        });
+      });
+    }
+    [TestMethod]
     public async Task CustomFieldEmpty_M() {
       //Assert.Inconclusive("For manual testing only");
       var fieldName = "Validation Status 6";
