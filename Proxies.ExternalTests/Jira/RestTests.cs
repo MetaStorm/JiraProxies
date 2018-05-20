@@ -514,6 +514,17 @@ namespace Jira.Tests {
       Assert.AreEqual(" ", fieldValue2);
     }
     [TestMethod]
+    public async Task SetIssueType_M() {
+      //Assert.Inconclusive("For manual testing only");
+      var fieldName = "issuetype";
+      var fieldValue = "Tax Form Validation";
+      var ticket = "BPM-12";// 668";
+      await ticket.ToJiraTicket().PutIssueFieldsAsync(fieldName, fieldValue);
+      var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;
+      var fieldValue2 = issue.fields.issuetype;
+      Assert.AreEqual(fieldValue, fieldValue2);
+    }
+    [TestMethod]
     public async Task IsIssueLinked() {
       const string accountField = "Account Number";
       var custom = new Dictionary<string, object> {

@@ -94,6 +94,7 @@ namespace Jira.Json {
         case "datetime": return ExtractDateTime(value)?.ToJiraDateTime() ?? "";
         case "user": return User.FromUserName(ExtractValue(value) + "");
         case "group": return Group.FromUserName(ExtractValue(value) + "");
+        case "issuetype": return new { name = value };
         default: throw new InvalidEnumArgumentException(new { schema = new { schema.type, schema.jiraType }, error = "JIRA type is not supported" } + "");
       }
     }
