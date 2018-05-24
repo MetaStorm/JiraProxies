@@ -239,13 +239,15 @@ namespace Jira {
       return new { issueTypeSchemeId } + "";
     }
     public static async Task<string> DeleteIssueTypeScreenSchemeAsync(int issueTypeScreenSchemeId) {
-      var values = new Dictionary<string, string> {
+      if (issueTypeScreenSchemeId > 0) {
+        var values = new Dictionary<string, string> {
         { "Delete", "Delete" },
         { "confirm", "true" },
         { "id", issueTypeScreenSchemeId+"" },
       };
-      var requestUri = "/secure/admin/DeleteIssueTypeScreenScheme.jspa";
-      await Core.PostFormAsync(requestUri, values);
+        var requestUri = "/secure/admin/DeleteIssueTypeScreenScheme.jspa";
+        await Core.PostFormAsync(requestUri, values);
+      }
       return new { issueTypeScreenSchemeId } + "";
     }
     public static async Task<string> DeleteScreenScheme(int screenSchemeId) {
@@ -1039,7 +1041,10 @@ namespace Jira {
       var issueTypeSchemeId = (await rm.GetProjectIssueTypeSchemeId(projectKey)).Value.id;
       var workflowSchemeId = (await rm.GetProjectWorkflowShemeAsync(projectKey)).Value.parentId;
       var workflows = (await rm.GetWorkflowShemeWorkflowAsync(workflowSchemeId)).Value.Select(w => w.workflow).ToArray();
-      var projectIssueTypeScreenScheme = (await rm.GetProjectIssueTypeSceenScheme(projectKey)).Value;
+      var projectIssueTypeScreenSchemeRest = (await rm.GetProjectIssueTypeSceenScheme(projectKey).WithError());
+      var projectIssueTypeScreenScheme = projectIssueTypeScreenSchemeRest.error == null 
+        ? projectIssueTypeScreenSchemeRest.value.Value 
+        : (id: 0, screenSchemeIds: new int[0], screenIds: new int[0]);
       var screenSchemeIds = projectIssueTypeScreenScheme.screenSchemeIds;
       var screenIds = projectIssueTypeScreenScheme.screenIds;
       //Assert.Inconclusive("Remove to delete project");
