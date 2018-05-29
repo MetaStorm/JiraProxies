@@ -28,7 +28,7 @@ namespace Proxies.ExternalTests {
     [TestMethod]
     public async Task ScreenDeleteById() {
       //Assert.Inconclusive();
-      await IsJiraDev();
+      await Rest.IsJiraDev();
       var screenIds = new[] {12316,
 12317,
 12318,
@@ -259,10 +259,10 @@ namespace Proxies.ExternalTests {
 12714,
 12715
 };
-      foreach(var id in screenIds)
-      (await Rest.DeleteScreen(id).WithError()).SideEffect(t=> {
-        Debug.WriteLine(new { id, t.error, t.value });
-      });
+      foreach (var id in screenIds)
+        (await Rest.DeleteScreen(id).WithError()).SideEffect(t => {
+          Debug.WriteLine(new { id, t.error, t.value });
+        });
     }
     [TestMethod]
     public async Task GetScreensByProject() {
@@ -270,11 +270,12 @@ namespace Proxies.ExternalTests {
       Assert.IsTrue(screens.Length > 0);
     }
     [TestMethod]
-    public async Task ProjectDelete() {
-      Assert.Inconclusive("To be used manually destroy the project");
-      await IsJiraDev();
-      var jo = (await RestMonad.Empty().DestroyProjectAsync("VOMP")).Value;
-      Console.WriteLine(jo);
+    public async Task ProjectDestroy() {
+      // Assert.Inconclusive("To be used manually destroy the project");
+      await Rest.IsJiraDev();
+      var jo = await RestMonad.Empty().DestroyProjectAsync("AC");
+      Console.WriteLine(jo.ToJson());
+      Assert.IsTrue(jo.errors.IsEmpty());
     }
     [TestMethod]
     public async Task ProjectCreate_M() {
@@ -282,9 +283,10 @@ namespace Proxies.ExternalTests {
       var x = (await from lead in RestMonad.Empty().GetMySelfAsync()
                      from p in lead.CreateDefaultProjectAsync("Import5", "IM5", "Impotred Project\nDELETE_ME", lead.Value.name)
                      from d in p.DestroyProjectAsync(p.Value.key)
-                     select new { p = p.Value, d = d.Value }
+                     select new { p = p.Value, d.jObject, e = d.errors.Select(e => e + "").ToList() }
                      .SideEffect(se => Console.WriteLine(se.ToJson())));
-      Assert.AreEqual(0, x.d.Value<JArray>("errors").Values<string>().Count());
+      Assert.AreEqual(0, x.e.Count);
+      Assert.AreEqual(0, x.jObject.Value<JArray>("errors").Values<string>().Count());
     }
 
     [TestMethod]
@@ -496,11 +498,5 @@ namespace Proxies.ExternalTests {
       Assert.AreEqual(0, res.Value.Count);
       //Console.WriteLine(issue);
     }
-    private static async Task IsJiraDev() {
-      var self = await RestMonad.Empty().GetAuthSession();
-      Assert.AreEqual("usmpokwjird01", self.BaseAddress.Host.ToLower());
-    }
-
-
   }
 }

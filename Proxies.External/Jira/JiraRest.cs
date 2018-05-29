@@ -239,7 +239,7 @@ namespace Jira {
       return new { issueTypeSchemeId } + "";
     }
     public static async Task<string> DeleteIssueTypeScreenSchemeAsync(int issueTypeScreenSchemeId) {
-      if (issueTypeScreenSchemeId > 0) {
+      if(issueTypeScreenSchemeId > 0) {
         var values = new Dictionary<string, string> {
         { "Delete", "Delete" },
         { "confirm", "true" },
@@ -1035,15 +1035,15 @@ namespace Jira {
 
     public static Task<RestMonad<HttpResponseMessage>> DeleteProjectAsync(this RestMonad RestMonad, string projectKey) =>
       RestMonad.DeleteAsync(ProjectPath(projectKey)(ApiPath));
-    public static async Task<RestMonad<JObject>> DestroyProjectAsync(this RestMonad rm, string projectKey) {
+    public static async Task<(JObject jObject, IList<Exception> errors)> DestroyProjectAsync(this RestMonad rm, string projectKey) {
       var project = (await rm.GetProjectAsync(projectKey)).Value;
       Passager.ThrowIf(() => !project.description.Contains("DELETE_ME"));
       var issueTypeSchemeId = (await rm.GetProjectIssueTypeSchemeId(projectKey)).Value.id;
       var workflowSchemeId = (await rm.GetProjectWorkflowShemeAsync(projectKey)).Value.parentId;
       var workflows = (await rm.GetWorkflowShemeWorkflowAsync(workflowSchemeId)).Value.Select(w => w.workflow).ToArray();
       var projectIssueTypeScreenSchemeRest = (await rm.GetProjectIssueTypeSceenScheme(projectKey).WithError());
-      var projectIssueTypeScreenScheme = projectIssueTypeScreenSchemeRest.error == null 
-        ? projectIssueTypeScreenSchemeRest.value.Value 
+      var projectIssueTypeScreenScheme = projectIssueTypeScreenSchemeRest.error == null
+        ? projectIssueTypeScreenSchemeRest.value.Value
         : (id: 0, screenSchemeIds: new int[0], screenIds: new int[0]);
       var screenSchemeIds = projectIssueTypeScreenScheme.screenSchemeIds;
       var screenIds = projectIssueTypeScreenScheme.screenIds;
@@ -1057,7 +1057,7 @@ namespace Jira {
       var dws = await WithErrorMonad.Create(() => DeleteWorkflowSchemeAsync(workflowSchemeId))();
       var dwfs = await from workflow in workflows
                        from t in WithErrorMonad.Create(() => DeleteWorkflowAsync(workflow))()
-                       select (workflow, t.value, readError(t.error));
+                       select new { workflow, t.value, error = readError(t.error) };
 
       var ditss = await from xd in WithErrorMonad.Create(() => DeleteIssueTypeScreenSchemeAsync(projectIssueTypeScreenScheme.id))()
                         select new { projectIssueTypeScreenScheme, xd.value, error = readError(xd.error) };
@@ -1074,17 +1074,25 @@ namespace Jira {
                        select new { projectKey, xd.value, error = readError(xd.error) };
       var jo = JObject.FromObject(new {
         create = new {
-          issueTypeSchemeId,
+          issueTypeSchemeId = issueTypeSchemeId,
           workflowSchemeId,
           workflows = workflows.Flatten(),
           projectIssueTypeScreenSchemeId = projectIssueTypeScreenScheme.id,
           screenSchemeIds = screenSchemeIds.Flatten(),
           screenIds = screenIds.Flatten()
         },
-        delete = new { dp, dit, dws, dwfs, ditss, dss, ds, dsbp },
-        errors = errors.Select(e => e.ToMessages()).ToArray()
+        delete = new {
+          dp,
+          dit,
+          dws,
+          dwfs = dwfs.Where(t => t.error != null).ToArray(),
+          ditss,
+          dss = dss.Where(t => t.error != null).ToArray(),
+          ds = ds.Where(t => t.error != null).ToArray(),
+          dsbp
+        }
       });
-      return jo.ToRestMonad(rm);
+      return (jo, errors);
       Exception readError(Exception exc) {
         if(exc != null) errors.Add(exc);
         return exc;
@@ -1412,6 +1420,10 @@ namespace Jira {
       return pausedIssues;
     }
 
+    public static async Task IsJiraDev() {
+      var jiraHost = (await RestMonad.Empty().GetAuthSession()).BaseAddress.Host.ToLower();
+      Passager.ThrowIf(() => "usmpokwjird01" != jiraHost, new { jiraHost } + "");
+    }
 
     public static async Task<RestMonad<AuthSession>> GetAuthSession(this RestMonad restMonad) {
       return await restMonad.GetAsync(s => s + authSessionPath, null, (rm, re) => {
