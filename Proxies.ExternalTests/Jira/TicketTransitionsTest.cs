@@ -417,6 +417,11 @@ namespace Proxies.ExternalTests {
       Trace.TraceInformation(ticket.ToString());
     }
     [TestMethod]
+    public async Task SimpleTransition_M() {
+      var ticket = (await "BPM-75".ToJiraTicket().PostIssueTransitionAsync("done","Test transition",false,null)).Value;
+      Trace.TraceInformation(ticket.ToString());
+    }
+    [TestMethod]
     public async Task TransitionHistory_CreateIssue() {
       var fields = new Dictionary<string, object> { ["Account Number"] = "RiskMgmt" };
       var issue = (await RestMonad.Empty()
