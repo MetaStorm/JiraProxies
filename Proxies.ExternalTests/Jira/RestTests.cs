@@ -652,7 +652,20 @@ namespace Jira.Tests {
         from_status = "Under Review"
       };
       var issue = (await ticket.GetIssueAsync()).Value;
-      var worklogs = (await ticket.PostWorklogForTransitionerAsync(transition, 1491825626822)).Value;
+      var worklogs = (await ticket.PostWorklogForTransitionerAsync(transition)).Value;
+      Assert.IsTrue(worklogs.Any(), "No progress history");
+      var anon = new { name = "", displayName = "", stateFrom = "", stateTo = "" };
+      var comment = JsonConvert.DeserializeAnonymousType(worklogs.Single().comment, anon);
+      Assert.IsFalse(comment.name.IsNullOrWhiteSpace());
+      Assert.IsFalse(comment.displayName.IsNullOrWhiteSpace());
+      Assert.IsFalse(comment.stateFrom.IsNullOrWhiteSpace());
+      Assert.IsFalse(comment.stateTo.IsNullOrWhiteSpace());
+      Console.WriteLine(comment);
+    }
+    [TestMethod]
+    public async Task PostWorklogByStatuses() {
+      var ticket = "RQ-4146".ToJiraTicket();
+      var worklogs = (await ticket.PostWorklogAsync("In Progress", "On Hold")).Value;
       Assert.IsTrue(worklogs.Any(), "No progress history");
       var anon = new { name = "", displayName = "", stateFrom = "", stateTo = "" };
       var comment = JsonConvert.DeserializeAnonymousType(worklogs.Single().comment, anon);
@@ -675,7 +688,7 @@ namespace Jira.Tests {
 
       Assert.IsTrue(pausedIssues.Any(), new { pauseTransitions = new { any = pausedIssues.Any() } } + "");
       var x = await (from pi in pausedIssues
-                     from wl in pi.key.ToJiraTicket().PostWorklogAsync("In Progress", "On Hold", 0)
+                     from wl in pi.key.ToJiraTicket().PostWorklogAsync("In Progress", "On Hold")
                      select wl.Value);
       Console.WriteLine(x.ToJson());
     }

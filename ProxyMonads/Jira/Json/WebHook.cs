@@ -7,9 +7,10 @@ using System.Threading.Tasks;
 namespace Jira.Json {
 
   public class WebHook {
-
+    public enum issue_event_type_names { issue_commented, issue_updated };
     public long timestamp { get; set; }
     public string webhookEvent { get; set; }
+    public string issue_event_type_name { get; set; }
     public User user { get; set; }
     public IssueClasses.Issue issue { get; set; }
     public Changelog changelog { get; set; }

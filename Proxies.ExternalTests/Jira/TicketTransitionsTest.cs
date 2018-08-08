@@ -19,6 +19,7 @@ namespace Proxies.ExternalTests {
 
     const string projectKey = "HLP";
     private const string issueType = "Password Reset";
+    private const string TEST_CATEGORY_MANUAL = "Manual";
 
     [TestMethod]
     public async Task ScreenDeleteByProject() {
@@ -278,6 +279,7 @@ namespace Proxies.ExternalTests {
       Assert.IsTrue(jo.errors.IsEmpty());
     }
     [TestMethod]
+    [TestCategory(TEST_CATEGORY_MANUAL)]
     public async Task ProjectCreate_M() {
       Assert.Inconclusive();
       var x = (await from lead in RestMonad.Empty().GetMySelfAsync()

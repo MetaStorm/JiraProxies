@@ -16,7 +16,7 @@ using System.Runtime.ExceptionServices;
 using System.Net;
 using static Wcf.ProxyMonads.RestExtenssions;
 using static Jira.Json.IssueClasses;
-using WLS = System.Tuple<System.DateTime, System.TimeSpan, Jira.Rest.TicketTransitionHistory, Jira.Json.IssueClasses.Assignee>;
+using WLS = System.Collections.Generic.List<(System.DateTime startDate, System.TimeSpan duration, Jira.Rest.TicketTransitionHistory history, Jira.Json.IssueClasses.Assignee assignee)>;
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
 
@@ -798,11 +798,13 @@ namespace Jira {
       return await (await rm.PostAsync(new Field<object>[0], () => IssueLinkPath()(rm.ApiAddress)))
         .HandleExecutedAsync((response, json) => rm, null, null);
     }
-    public static async Task<RestMonad<WorklogOut[]>> PostWorklogForTransitionerAsync(this JiraTicket<string> jiraTicket, WebHook.Transition webhookTransition, double timestamp) {
-      return await jiraTicket.PostWorklogAsync(webhookTransition.from_status, webhookTransition.to_status, timestamp);
+    public static async Task<RestMonad<WorklogOut[]>> PostWorklogForTransitionerAsync(this JiraTicket<string> jiraTicket, WebHook.Transition webhookTransition) {
+      return await jiraTicket.PostWorklogAsync(webhookTransition.from_status, webhookTransition.to_status);
     }
-    public static async Task<RestMonad<WorklogOut[]>> PostWorklogAsync(this JiraTicket<string> jiraTicket, string statusFrom, string statusTo, double timestamp) {
-      var x = (await (await (from wls in jiraTicket.GetWorklogSubject(statusFrom, statusTo, timestamp)
+    public static async Task<RestMonad<WorklogOut[]>> PostWorklogAsync(string jiraTicket, string statusFrom, string statusTo)
+      => await jiraTicket.ToJiraTicket().PostWorklogAsync(statusFrom, statusTo);
+    public static async Task<RestMonad<WorklogOut[]>> PostWorklogAsync(this JiraTicket<string> jiraTicket, string statusFrom, string statusTo) {
+      var x = (await (await (from wls in jiraTicket.GetWorklogSubject(statusFrom, statusTo)
                              from ts in wls.Value
                              select jiraTicket.PostWorklogAsync(ts.Item1, ts.Item2, new { ts.Item4.name, ts.Item4.displayName, stateFrom = ts.Item3.FromState, stateTo = ts.Item3.ToState, @by = ts.Item3.Author?.displayName }.ToJson(false))))
                             .WhenAll())
@@ -810,23 +812,22 @@ namespace Jira {
                             .ToArray();
       return jiraTicket.Clone<RestMonad<WorklogOut[]>, WorklogOut[]>(x);
     }
-    public static async Task<RestMonad<WLS[]>> GetWorklogSubject(this JiraTicket<string> ticket, string statusFrom, string statusTo, double timestamp) {
+    public static async Task<RestMonad<WLS>> GetWorklogSubject(this JiraTicket<string> ticket, string statusFrom, string statusTo) {
       var rm = (await ticket.GetIssueAsync(new[] { IssueExpander.changelog }));
       var issue = rm.Value;
-      var transTime = timestamp.FromTimestamp();
       var history = issue.TransitionHistory().Reverse()
         .SkipWhile(h => h.ToState.ToLower() != statusTo.ToLower() || h.FromState.ToLower() != statusFrom.ToLower())
         .Take(2)
         .Reverse()
         .ToArray();
       var doLog = history.Skip(1);//.Where(h => stateFrom.IsNullOrWhiteSpace() || h.FromState.ToLower() == stateFrom.ToLower());
-      return rm.Clone<RestMonad<WLS[]>, WLS[]>((
+      return rm.Clone<RestMonad<WLS>, WLS>((
         from endHist in doLog//.Select(h => new { h.Date, h.Author.name })
         from startHist in history.Take(1).Select(h => new { Date = h.Date, h.Author?.name })
-        select Tuple.Create(startHist.Date.LocalDateTime, endHist.Date - startHist.Date, endHist, issue.fields.assignee)
+        select (startHist.Date.LocalDateTime, endHist.Date - startHist.Date, endHist, issue.fields.assignee)
         )
         .Where(t => t.Item2.TotalMinutes > 0)
-        .ToArray());
+        .ToList());
     }
 
     static async Task<RestMonad<WorklogOut>> PostWorklogAsync(this JiraTicket<string> ticket, DateTime dateStarted, TimeSpan timeSpent, string comment) {
