@@ -42,7 +42,9 @@ namespace Wcf.ProxyMonads {
       [Foundation.CustomConfig.ConfigValue]
       public static bool TraceRequests { get { return KeyValue<bool>(new[] { false }); } }
       [Foundation.CustomConfig.ConfigValue]
-      public static string[] FieldTypesToIgnore { get { return KeyValue()?.Split(new[] {',' }, StringSplitOptions.RemoveEmptyEntries) ?? new string[0]; } }
+      public static string[] FieldTypesToIgnore { get { return KeyValue()?.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries) ?? new string[0]; } }
+      [Foundation.CustomConfig.ConfigValue]
+      public static string[] FieldsToIgnore { get { return KeyValue()?.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries) ?? new string[0]; } }
     }
     public static void UnTest() { JiraConfig.UnTest(); }
     public static async Task<ExpandoObject> RunTestFastAsync(ExpandoObject parameters = null, params Func<ExpandoObject,ExpandoObject>[] merge) {

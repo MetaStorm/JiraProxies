@@ -57,10 +57,18 @@ namespace Jira.Tests {
           Assert.AreEqual(a.Key, a.id);
           Assert.AreEqual(a.Value, "irrelevant value");
         });
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         Console.WriteLine(exc + "");
         throw;
       }
+    }
+    [TestMethod()]
+    public async Task ResolveFields() {
+      var cfs =  (await (from fields in new RestMonad().GetFields()
+                 from field in fields.Value.OrderBy(cf=>cf.name)
+                 select field
+                 )).ToList();
+      cfs.OrderBy(cf=>cf.name).ForEach(cf => Console.WriteLine(cf.name));
     }
     [TestMethod]
     public async Task GetSecurityLevel() {
@@ -399,10 +407,14 @@ namespace Jira.Tests {
       jiraUser = await user.PostOrGetAsync();
       Assert.AreEqual(userName, jiraUser.Value.name);
 
+      await jiraUser.AddToGroupAsync("testers");
+      jiraUser = await user.PostOrGetAsync();
+
       await user.DeleteAsync();
       oldUser = (await user.GetAsync()).Value;
       Assert.IsNull(oldUser);
-      //await user.DeleteAsync();
+
+      Assert.IsTrue(jiraUser.Value.groups.items.Any(g => g.name.ToLower() == "testers"));
     }
 
     [TestMethod()]

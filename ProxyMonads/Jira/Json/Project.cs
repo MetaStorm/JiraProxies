@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Jira.Json {  
+namespace Jira.Json {
   public class Project {
     public string expand { get; set; }
     public string self { get; set; }
@@ -18,7 +18,7 @@ namespace Jira.Json {
     public string assigneeType { get; set; }
     public object[] versions { get; set; }
     public string name { get; set; }
-    public Roles roles { get; set; }
+    public Dictionary<string,string> roles { get; set; }
     public Avatarurls1 avatarUrls { get; set; }
     public Projectcategory projectCategory { get; set; }
     public string projectTypeKey { get; set; }
@@ -57,9 +57,6 @@ namespace Jira.Json {
     public string _48x48 { get; set; }
   }
 
-  public class Roles {
-  }
-
   public class Avatarurls1 {
     public string _48x48 { get; set; }
     public string _24x24 { get; set; }
@@ -73,5 +70,4 @@ namespace Jira.Json {
     public string name { get; set; }
     public string description { get; set; }
   }
-
 }

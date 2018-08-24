@@ -396,6 +396,11 @@ namespace Wcf.ProxyMonads {
         client.ApiAddress = path;
       else if (!string.IsNullOrWhiteSpace(path))
         throw new Exception(new { client = new { client.ApiAddress }, path, error = "ApiAddress or path must be empty" } + "");
+
+      //if(Uri.TryCreate(path, UriKind.RelativeOrAbsolute, out var pathUri) && pathUri.IsAbsoluteUri) {
+      //  client.BaseAddress = pathUri;
+      //  client.ApiAddress = "";
+      //}
     }
 
     //public static Func<string, RestMonad.PasswordClass, Uri, HttpClient> BuildCustomClientFactory(this RestMonad restMonad) {

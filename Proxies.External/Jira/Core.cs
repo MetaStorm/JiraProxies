@@ -19,6 +19,15 @@ using Newtonsoft.Json.Linq;
 
 namespace Jira {
   public static class Core {
+    public static async Task IsJiraDev() {
+      const string jiraServer = "usmpokwjird01";
+      var jiraHost = (await RestMonad.Empty().GetAuthSession()).BaseAddress.Host.ToLower();
+      Passager.ThrowIf(() => !jiraHost.ToLower().Contains(jiraServer), new { jiraHost } + "");
+    }
+    public static async Task IsJiraQA() {
+      var jiraHost = (await RestMonad.Empty().GetAuthSession()).BaseAddress.Host.ToLower();
+      Passager.ThrowIf(() => !jiraHost.ToLower().Contains("usmrtpwjirq01"), new { jiraHost } + "");
+    }
     #region Factories
     static HttpClient HttpClientFactory(Func<string, RestMonad.PasswordClass, string, HttpClient> customFactory) {
       var client = customFactory(JiraMonad.JiraPowerUser(), JiraMonad.JiraPowerPassword(), JiraMonad.JiraServiceBaseAddress());
@@ -94,6 +103,13 @@ namespace Jira {
         from rm2 in rm.HandleExecutedAsync((response, json) => response, null, null)
         select rm2);
     }
+    async public static Task<RestMonad<T>> DeleteAsync<T>(this RestMonad<T> restMonad, string path) {
+      Passager.ThrowIf(() => restMonad == null);
+      return await (
+        from rm in restMonad.DeleteAsync(() => path)
+        from rm2 in rm.HandleExecutedAsync((response, json) => response, null, null)
+        select rm2.Switch(restMonad.Value));
+    }
     #endregion
 
     #region Get
@@ -144,6 +160,7 @@ namespace Jira {
     #endregion
 
     #region Post
+    public static async Task<string> PostFormAsync(string requestUri) => await PostFormAsync(requestUri, new Dictionary<string, string>());
     public static async Task<string> PostFormAsync(string requestUri, Dictionary<string, string> values) {
       using (var client = new HttpClient()) {
         client.BaseAddress = new Uri(JiraMonad.JiraServiceBaseAddress());

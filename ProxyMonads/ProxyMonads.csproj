@@ -147,6 +147,7 @@
     <Compile Include="Jira\Json\ProjectConfig.cs" />
     <Compile Include="Jira\Json\ProjectStatuses.cs" />
     <Compile Include="Jira\Json\RemoteLink.cs" />
+    <Compile Include="Jira\Json\Role.cs" />
     <Compile Include="Jira\Json\SearchResult.cs" />
     <Compile Include="Jira\Json\SecurityLevel.cs" />
     <Compile Include="Jira\Json\SelfId.cs" />

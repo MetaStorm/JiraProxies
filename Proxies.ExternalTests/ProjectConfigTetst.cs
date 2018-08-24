@@ -35,7 +35,7 @@ namespace Jira.Tests {
       await it.ToRestMonad().DeleteIssueTypeAsync(false);
       try {
         await it.ToRestMonad().DeleteIssueTypeAsync();
-      } catch (HttpResponseMessageException exc) {
+      } catch(HttpResponseMessageException exc) {
         Assert.IsTrue(exc.ToMessages().Contains(issueType));
         return;
       }
@@ -59,13 +59,13 @@ namespace Jira.Tests {
         from it in rm.PostIssueTypesAsync(issueType, "Delete Me")
         from ait in Rest.ProjectIssueTypeAddOrDelete(projectKey, it.Value.name)
         from s0 in it.WorkflowIssueTypeAttach(projectKey, issueType, workflow)
-        from s in it.WorkflowIssueTypeAttach(projectKey, issueType,"jira")
+        from s in it.WorkflowIssueTypeAttach(projectKey, issueType, "jira")
         from dit in ait.ToRestMonad().DeleteIssueTypeAsync()
         select s.Value
         );
       var doc = new HtmlAgilityPack.HtmlDocument();
       doc.LoadHtml(r);
-      Console.WriteLine(Regex.Replace(doc.DocumentNode.InnerText,"[\r\n]{3,}","\n"));
+      Console.WriteLine(Regex.Replace(doc.DocumentNode.InnerText, "[\r\n]{3,}", "\n"));
     }
 
 
@@ -79,7 +79,141 @@ namespace Jira.Tests {
     public async Task ProjectWorkflowSchema() {
       var projectKey = "IM";
       var id = await RestMonad.Empty().GetProjectWorkflowShemeAsync(projectKey);
-      Console.WriteLine(id.Value.ToJson() );
+      Console.WriteLine(id.Value.ToJson());
     }
+    [TestMethod]
+    public async Task ProjectIssueTypeScreenScheme() {
+      await Rest.IsJiraDev();
+      var projectKey = "ACW";
+      var schemeId = 12191;
+      await Rest.ProjectIssueTypeScreenSchemeAdd(projectKey, schemeId);
+      //Console.WriteLine(new { issueTypeSchemeId });
+    }
+    [TestMethod]
+    [TestCategory("Manual")]
+    public async Task FieldConfiguration() {
+      //Assert.Inconclusive();
+      await Rest.IsJiraDev();
+      var configName = "SR: Generic";
+      var suffix = " " + Helpers.RandomStringUpper(4);
+
+      var fieldSchemeId = (await Rest.FieldConfigurationSchemeAddAsync(configName + suffix)).First();
+      Console.WriteLine(new { fieldSchemeId });
+
+
+      var fc = await Rest.FieldConfigurationIdAsync(configName);
+      Console.WriteLine(new { fc = fc.Flatten() });
+      Assert.IsTrue(fc.Contains(10800));
+
+      var newName = configName + " " + suffix;
+      var id = await Rest.FieldConfigurationCopyAsync(fc.First(), newName);
+      var nfc = await Rest.FieldConfigurationIdAsync(newName);
+      Console.WriteLine(new { nfc = nfc.Flatten() });
+      Assert.IsTrue(nfc.Contains(id));
+
+      id = await Rest.FieldConfigurationCopyAsync(fc.First(), newName);
+      Assert.IsTrue(nfc.Contains(id));
+
+      await Rest.FieldConfigurationSchemeAddConfigAsync(fieldSchemeId, id);
+
+      await Rest.ProjectFieldConfigurationSchemeAddAsync("ACW", fieldSchemeId);
+
+      var fieldSchemaId2 = await Rest.FieldConfigurationSchemeIdAsync("ACW: Account Closing");
+      Assert.AreEqual(1, fieldSchemaId2.Length);
+
+      await Rest.ProjectFieldConfigurationSchemeAddAsync("ACW", fieldSchemaId2.First());
+
+      await Rest.FieldConfigurationSchemeDeleteAsync(fieldSchemeId);
+      await Rest.FieldConfigurationDeleteAsync(nfc.First());
+      nfc = await Rest.FieldConfigurationIdAsync(newName);
+      Assert.IsTrue(nfc.IsEmpty());
+    }
+
+    [TestMethod]
+    [TestCategory("Project")]
+    public async Task ProjectRolesClear() {
+      var projectKey = "ACW";
+      await RestMonad.Empty().ProjectRolesClearAsync(projectKey);
+    }
+
+    [TestMethod]
+    [TestCategory("Project")]
+    public async Task ProjectRoles() {
+      var roleToName = "Users";
+      var groupToAdd = "jira";
+      var projectKey = "ACW";
+      var rm = RestMonad.Empty();
+
+      await ExceptionAssert.Propagates<HttpResponseMessageException>(rm.ProjectRolesGetAsync(projectKey + 2), exc => Assert.IsTrue(exc.Message.Contains(projectKey + 2)));
+
+      var projectRoles = (await (await (
+        from rolesRM in rm.ProjectRolesGetAsync(projectKey)
+        from roleUrl in rolesRM.Value.Values
+        select rolesRM.GetAsync(() => roleUrl, (hrm, json) => Core.Return<Role>(hrm, json), null, null)
+        )).WhenAllSequiential()
+        )
+        .Where(role => role.Value.actors.Any())
+        .OrderBy(role => role.Value.name)
+        .ToList();
+
+      // Clean group from project role
+      await (from role in projectRoles
+             where role.Value.name.ToLower() == roleToName.ToLower()
+             from actor in role.Value.actors
+             where actor.name.ToLower() == groupToAdd.ToLower()
+             select role.DeleteAsync($"{role.Value.self}?{actor.Type}={actor.name}")
+       ).WhenAllSequiential();
+
+      // Add group to missing Project Role
+      var rolesEmpty = await rm.ProjectRolePostAsync(projectKey, roleToName + "2", groupToAdd);
+      Assert.IsTrue(rolesEmpty.Value.IsEmpty());
+      // Add missing group to Project Role
+      await ExceptionAssert.Propagates<HttpResponseMessageException>(rm.ProjectRolePostAsync(projectKey, roleToName, groupToAdd + 2), exc => Assert.IsTrue(exc.Message.Contains(groupToAdd + 2)));
+
+      // Add group to Project Role
+      var rolesAdded = await rm.ProjectRolePostAsync(projectKey, roleToName, groupToAdd);
+      Assert.IsTrue(rolesAdded.Value.SelectMany(role => role.actors).Any(a => a.name == groupToAdd));
+
+      // Remove group from project role
+      (await (from roleRemoved in rm.ProjectRolesRemoveMemberAsync(projectKey, roleToName, groupToAdd)
+              from role in roleRemoved.Value
+              select role
+       ))
+       .Counter(1)
+       .ForEach(role => Assert.AreEqual(roleToName, role.name));
+      (await rm.RolesGetAsync(roleToName)).Value.SelectMany(role => role.actors).Where(a => a.name == groupToAdd).Counter(0);
+
+      //await RestMonad.Empty().ProjectRolesDeleteAsync("ACW");
+      //roles = (await RestMonad.Empty().ProjectRolesGetAsync("ACW")).Value;
+      //Console.WriteLine(roles.ToJson());
+      //Assert.IsFalse(roles.Any());
+    }
+    [TestMethod]
+    [TestCategory("Project")]
+    [TestCategory("Manual")]
+    public async Task Roles() {
+      Assert.Inconclusive("Manual");
+      var rm = RestMonad.Empty();
+      var roles = (await (
+        from rolesRM in rm.RolesGetAsync()
+        from role in rolesRM.Value
+        select role
+        ))
+        .Where(role => role.actors?.Any() == true)
+        .OrderBy(role => role.name)
+        .ToList();
+      Assert.IsTrue(true, "User 'true' do delete default roles");
+      //Console.WriteLine(roles.ToJson());
+      Assert.IsTrue(roles.Any());
+      var x = await (from role in roles
+                     from actor in role.actors
+                     select rm.DeleteAsync($"{role.self}/actors?{actor.Type}={actor.name.ToLower()}").SideEffect(_ => Console.WriteLine(new { role = role.name, actor = actor.name }))
+       ).WhenAllSequiential();
+      //await RestMonad.Empty().ProjectRolesDeleteAsync("ACW");
+      //roles = (await RestMonad.Empty().ProjectRolesGetAsync("ACW")).Value;
+      //Console.WriteLine(roles.ToJson());
+      //Assert.IsFalse(roles.Any());
+    }
+
   }
 }

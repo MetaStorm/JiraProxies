@@ -19,6 +19,8 @@ using static Jira.Json.IssueClasses;
 using WLS = System.Collections.Generic.List<(System.DateTime startDate, System.TimeSpan duration, Jira.Rest.TicketTransitionHistory history, Jira.Json.IssueClasses.Assignee assignee)>;
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
+using static Jira.Json.Role;
+using static Wcf.ProxyMonads.JiraMonad;
 
 namespace Jira {
   public static partial class Rest {
@@ -126,6 +128,7 @@ namespace Jira {
       return (apiPath) => ApiPathOrDefault(apiPath) + operation + urlQuery;
     }
     static string GroupPath(string groupName) { return UnrelatedPath("group", Tuple.Create("groupname", groupName))(ApiPath); }
+    static string GroupAddUserPath(string groupName) { return UnrelatedPath("group/user", Tuple.Create("groupname", groupName))(ApiPath); }
     static Func<string, string> UserPath(params Tuple<string, string>[] urlParams) { return UnrelatedPath("user", urlParams); }
     static string UserPath() { return UnrelatedPath("user")(ApiPath); }
     static Func<string, string> FieldPath(params Tuple<string, string>[] urlParams) { return UnrelatedPath("field", urlParams); }
@@ -156,6 +159,8 @@ namespace Jira {
       Passager.ThrowIf(() => projectIdOrKey.IsNullOrWhiteSpace());
       return UnrelatedPath($"project/{projectIdOrKey}");
     }
+    static Func<string, string> ProjectRolesPath(string project) { return UnrelatedPath("project/" + project + "/role"); }
+    static Func<string, string> ProjectRolePath(string project, int roleId) { return UnrelatedPath("project/" + project + "/role/" + roleId); }
     static Func<string, string> ProjectIssueStatusesPath(string project) { return UnrelatedPath("project/" + project + "/statuses"); }
     static Func<string, string> ProjectComponentsPath(string project) { return UnrelatedPath("project/" + project.ToUpper() + "/components"); }
     static Func<string, string> UsersPath(string user) { return UnrelatedPath($"user/search?startAt=0&maxResults=10000&includeInactive=false&username={user.IfEmpty(RestConfiger.UserWildcard)}"); }
@@ -163,6 +168,7 @@ namespace Jira {
       Passager.ThrowIf(() => permission.IsEmpty());
       return UnrelatedPath($"user/permission/search?username={user}&permissions={permission}&issueKey={ticket.ToUpper()}&startAt=0&maxResults=10000");
     }
+    static Func<string, string> RolesPath => UnrelatedPath("role");
 
     //static Func<string, string> IssueTypePath() { return UnrelatedPath("issuetype"); }
     static string IssueTypePath(int id) { return IssueTypePath(null) + "/" + id; }
@@ -170,6 +176,7 @@ namespace Jira {
     static string IssueTypePath(string apiPath = null) { return (apiPath ?? ApiPath) + "issuetype"; }
     static string RestApiPath(string segment) { return ApiPath + segment; }
     public static string ProjectPath() { return RestApiPath("project"); }
+    public static string ProjectRoleByIdPath(string projectKey, int roleId) { return $"{RestApiPath("project")}/{projectKey}/role/{roleId}"; }
 
 
     //static string IssueTypePath() { return ApiPath + "issuetype"; }
@@ -635,7 +642,7 @@ namespace Jira {
     }
     public static async Task<string[]> ResolveComponents(this RestMonad restMonad, string project, IList<string> components) {
       if(components == null || components.Count == 0) return new string[0];
-      var resolvedComponents = (await restMonad.GetArrayAsync<IssueClasses.Component>(ProjectComponentsPath(project), true, field => new[] { field.name }, components.ToArray())).Value;
+      var resolvedComponents = (await restMonad.GetArrayAsync<Component>(ProjectComponentsPath(project), true, field => new[] { field.name }, components.ToArray())).Value;
       var excs = (from c in components
                   join rc in resolvedComponents on c.ToLower() equals rc.name.ToLower() into gc
                   from g in gc.DefaultIfEmpty()
@@ -987,13 +994,17 @@ namespace Jira {
       return x2.Switch(await x2.Value);
       async Task<User> getUser() => (await rm.GetAsync()).Value;
     }
-    public static Task<RestMonad<HttpResponseMessage>> DeleteAsync(this Json.User rm) => rm.ToRestMonad().DeleteAsync();
-    public static Task<RestMonad<HttpResponseMessage>> DeleteAsync(this RestMonad<Json.User> rm) =>
+    public static Task<RestMonad<User>> DeleteAsync(this Json.User rm) => rm.ToRestMonad().DeleteAsync();
+    public static Task<RestMonad<User>> DeleteAsync(this RestMonad<Json.User> rm) =>
       rm.DeleteAsync(UserPath(Tuple.Create("username", rm.Value.name))(ApiPath));
     public static Task<RestMonad<User>> GetAsync(this User user) => user.ToRestMonad().GetAsync();
     public static async Task<RestMonad<User>> GetAsync(this RestMonad<User> RestMonad) {
       var pathFactory = UserPath(Tuple.Create("username", RestMonad.Value.name), Tuple.Create("key", RestMonad.Value.key), Tuple.Create("expand", RestMonad.Value.expand));
       return (await RestMonad.GetAsync<User>(pathFactory, null, null, (hrm, json) => hrm.Switch<User>(null)));
+    }
+    public static async Task<RestMonad> AddToGroupAsync(this RestMonad<User> RestMonad, string groupName) {
+      var pathFactory = GroupAddUserPath(groupName);
+      return (await RestMonad.PostAsync(() => pathFactory, RestMonad.Value, (hrm, json) => hrm.Switch<User>(null), null, false));
     }
     public static async Task<RestMonad<User[]>> GetUsersAsync(this RestMonad RestMonad, string user = "") {
       return await RestMonad.GetAsync<User[]>(UsersPath(user), null);
@@ -1027,6 +1038,30 @@ namespace Jira {
         //permissionScheme = 10000,
         notificationScheme = 10000,
         categoryId = 10020
+      }.ToRestMonad().PostAsync();
+    public static Task<RestMonad<Project>> CreateProjectAsync(this RestMonad rm
+      , string name
+      , string key
+      , string description
+      , string lead
+      , int issueSecurityScheme = 10000
+      , int permissionScheme = 10000
+      , int notificationScheme = 10000
+      , int categoryId = 10020
+      ) =>
+      new ProjectNew {
+        key = key,
+        name = name,
+        projectTypeKey = "business",
+        projectTemplateKey = "com.atlassian.jira-core-project-templates:jira-core-task-management",
+        description = description,
+        lead = lead,
+        assigneeType = "PROJECT_LEAD",
+        avatarId = 10000,
+        issueSecurityScheme = issueSecurityScheme,
+        permissionScheme = permissionScheme,
+        notificationScheme = notificationScheme,
+        categoryId = categoryId
       }.ToRestMonad().PostAsync();
 
     public static Task<RestMonad<Project>> PostAsync(this RestMonad<ProjectNew> rm) =>
@@ -1122,6 +1157,63 @@ namespace Jira {
 
     public static async Task<RestMonad<Jira.Json.ProjectIssueStatuses[]>> GetProjectIssueStatusesAsync(this RestMonad rest, string project) {
       return await rest.GetArrayAsync<ProjectIssueStatuses>(ProjectIssueStatusesPath(project), true, it => it.name);
+    }
+    public static async Task<RestMonad<Dictionary<string, string>>> ProjectRolesGetAsync(this RestMonad rest, string project) {
+      return await rest.GetAsync<Dictionary<string, string>>(ProjectRolesPath(project), null);
+    }
+    public static async Task<RestMonad> ProjectRolesClearAsync(this RestMonad rm, string projectKey) {
+      var projectRoles = (await (await (
+        from rolesRM in rm.ProjectRolesGetAsync(projectKey)
+        from roleUrl in rolesRM.Value.Values
+        select rolesRM.GetAsync(() => roleUrl, (hrm, json) => Core.Return<Role>(hrm, json), null, null)
+        )).WhenAllSequiential()
+        )
+        .Where(role => role.Value.actors.Any())
+        .OrderBy(role => role.Value.name)
+        .ToList();
+
+      // Clean group from project role
+      var x = await (from role in projectRoles
+             from actor in role.Value.actors
+             select role.ProjectRoleRemoveMemberAsync(projectKey, role.Value.id, actor)
+       ).WhenAllSequiential();
+      return x.FirstOrDefault() ?? rm;
+    }
+
+    public static async Task<RestMonad> ProjectRoleRemoveMemberAsync(this RestMonad rest, string project, int roleId, Actor actor) {
+      string ActorName(Actor a) => a.IsUser ? a.name.ToLower() : a.name;
+      return await rest.DeleteAsync($"{ProjectRoleByIdPath(project, roleId)}?{actor.Type}={ActorName(actor)}");
+    }
+    public static async Task<RestMonad<Role[]>> RolesGetAsync(this RestMonad rest, params string[] roles) {
+      return await rest.GetArrayAsync<Role>(RolesPath, true, r => r.name, roles);
+    }
+    public static async Task<RestMonad<Role>> GetProjectRoleAsync(this RestMonad rest, string project, int roleId) {
+      return await rest.GetAsync<Role>(ProjectRolePath(project, roleId), null);
+    }
+    public static async Task<RestMonad<Role[]>> ProjectRolePostAsync(this RestMonad rest, string project, string roleName, params string[] groupName) {
+      var x = await (await (from roles in rest.RolesGetAsync(roleName)
+                            from role in roles.Value.Select(role => roles.ProjectRolePostAsync(project, role.id, groupName))
+                            select role
+       )).WhenAllSequiential();
+      return x.SingleOrDefault()?.Switch(x.Select(rm => rm.Value).ToArray()) ?? new Role[0].ToRestMonad();
+    }
+    public static async Task<RestMonad<Role>> ProjectRolePostAsync(this RestMonad rest, string project, int roleId, params string[] groupName) {
+      return await rest.PostAsync(() => ProjectRoleByIdPath(project, roleId), new { group = groupName }, Core.Return<Role>);
+    }
+    public static async Task<RestMonad<Role[]>> ProjectRolesRemoveMemberAsync(this RestMonad rest, string project, string roleName, string member) {
+      var x = await (await (
+        from roleRM in rest.RolesGetAsync(roleName)
+        select roleRM.Value.Select(role => roleRM.ProjectRolesRemoveMemberAsync(project, role.id, member))
+       )).WhenAllSequiential();
+      return x.DefaultIfEmpty(new Role[0].ToRestMonad()).Single();
+    }
+    public static async Task<RestMonad<Role[]>> ProjectRolesRemoveMemberAsync(this RestMonad rest, string project, int roleId, string member) {
+      var x = await (await (
+        from role in rest.GetProjectRoleAsync(project, roleId)
+        from actor in role.Value.actors.Where(a => a.name.ToLower() == member.ToLower())
+        select role.DeleteAsync($"{role.Value.self}?{actor.Type}={actor.name}")
+        )).WhenAllSequiential();
+      return x.FirstOrDefault()?.Switch(x.Select(role => role.Value).ToArray()) ?? new Role[0].ToRestMonad();
     }
     public static T ToObject<T>(this JToken jt, Func<T> returnTypeTemplate) {
       return jt.ToObject<T>();
@@ -1241,11 +1333,17 @@ namespace Jira {
       return await restMonad.GetFieldsByKeyOrName(isEquelFilter, true, filter);
     }
     private static async Task<RestMonad<Field[]>> GetFieldsByKeyOrName(this RestMonad restMonad, bool isEquelFilter, bool throwIfMissing, params string[] filter) {
-      return await restMonad.GetArrayAsync<Field>(
+      var fields =  await restMonad.GetArrayAsync<Field>(
         FieldPath(),
         isEquelFilter,
         field => field.FilterValues(),
         filter);
+      var fields2 = (from field in fields.Value
+                join fi in JiraConfig.FieldsToIgnore on field.name.ToLower() equals fi.ToLower() into g
+                where g.IsEmpty()
+                select field
+              ).ToArray();
+      return fields.Clone(fields2);
     }
 
     public static async Task<RestMonad<SecurityLevel>> GetSecurityLevel(this RestMonad restMonad, int securityLevelId, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<SecurityLevel>> onError = null) {

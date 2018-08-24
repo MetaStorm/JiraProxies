@@ -42,14 +42,14 @@ namespace Jira {
       var id = (from a in doc.SelectNodes(xPath)
                 select a.Attributes[dataAttrName].Value
                ).FirstOrDefault();
-      if (id.IsNullOrWhiteSpace())
+      if(id.IsNullOrWhiteSpace())
         throw new Exception(new { elementWith = new { id = idValue, dataAttrName }, docRM.Value.pageAddress, error = "Not Found", } + "");
 
       var classValue = "project-config-scheme-name";
       var name = (from e in doc.SelectNodes($"//*[@class='{classValue}']")
                   select e.InnerText
                ).FirstOrDefault();
-      if (name.IsNullOrWhiteSpace())
+      if(name.IsNullOrWhiteSpace())
         throw new Exception(new { elementWith = new { @class = classValue }, docRM.Value.pageAddress, error = "Not Found", } + "");
 
       return docRM.Switch((int.Parse(id), name));
@@ -59,17 +59,20 @@ namespace Jira {
       var doc = docRM.Value.doc;
       var idValue = "project-config-screens-scheme-edit";
       var dataAttrName = "data-id";
+      var isGeneric = doc.SelectNodes($"//*[contains(.,'Generic')]").TakeLast(1).Any(n => n.InnerText.Contains(": Generic"));
+      if(isGeneric)
+        return docRM.Switch((0, new int[0], new int[0]));
       var id = (from a in doc.SelectNodes($"//a[@id='{idValue}']")
                 select a.Attributes[dataAttrName].Value
                ).FirstOrDefault();
-      if (id.IsNullOrWhiteSpace())
+      if(id.IsNullOrWhiteSpace())
         throw new Exception(new { elementWith = new { id = idValue, dataAttrName }, docRM.Value.pageAddress, error = "Not Found", } + "");
 
       var classValue = "project-config-screens-field-screen-scheme-id";
       var screenSchemeIds = (from a in doc.SelectNodes($"//input[@class='{classValue}']")
                              select a.Attributes["value"].Value
                ).ToArray();
-      if (id.IsNullOrWhiteSpace())
+      if(id.IsNullOrWhiteSpace())
         throw new Exception(new { elementWith = new { @class = classValue }, docRM.Value.pageAddress, error = "Not Found", } + "");
 
       var screenIds = GetScreenIds(doc);
@@ -80,7 +83,7 @@ namespace Jira {
       var ids = (from a in doc.SelectNodes($"//a[contains(@href,'{hrefValue}')]")
                  select a.Attributes["href"].Value.Split('=').Last()
                ).ToArray();
-      if (ids.IsEmpty())
+      if(ids.IsEmpty())
         throw new Exception(new { elementWith = new { hrefValue }, error = "Not Found", } + "");
 
       return ids.Select(id => int.Parse(id)).Distinct().ToArray();
@@ -94,7 +97,7 @@ namespace Jira {
                        where Regex.IsMatch(a.Attributes["id"].Value, $"{classPrefix}_fieldscreen_{projectKey}: ")
                        select int.Parse(a.Attributes["rel"].Value)
                        ).ToArray();
-      if (throwOnEmpty && screenIds.IsEmpty())
+      if(throwOnEmpty && screenIds.IsEmpty())
         throw new Exception(new { elementWith = new { classValue, @in = docRM.Value.pageAddress }, error = "Not Found", } + "");
 
       return docRM.Switch(screenIds.ToArray());
@@ -134,7 +137,7 @@ namespace Jira {
       var projectIssueType = (await GetIssueTypes())
         .Where(it => it.name.ToLower() == issueTypeName.ToLower())
         .SingleOrDefault();
-      if (!isDelete)
+      if(!isDelete)
         Passager.ThrowIf(() => projectIssueType == null);
       else
         Passager.ThrowIf(() => projectIssueType != null);
@@ -171,7 +174,7 @@ namespace Jira {
       };
       try {
         return project.Switch(await Core.PostFormAsync("secure/project/SelectProjectWorkflowSchemeStep2.jspa", request));
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         request.Add("ProjectKey", projectKey);
         throw new Exception(request.ToJson(false), exc);
       }
@@ -182,6 +185,121 @@ namespace Jira {
              from m in d.WorkflowIssueTypeDraftMap(projectKey, issueType, workflow)
              from s in m.WorkflowIssueTypeDraftSubmit(projectKey, d.Value.id)
              select s;
+    }
+    #endregion
+
+    public static async Task ProjectIssueTypeScreenSchemeAdd(string projectKey, int issueTypeScreenSchemeId) {
+      var rm = RestMonad.Empty();
+      var projectId = (await RestMonad.Empty().GetProjectAsync(projectKey)).Value.id;
+      var query = new Dictionary<string, string> {
+        ["schemeId"] = issueTypeScreenSchemeId + "",
+        ["projectId"] = projectId + "",
+        ["Associate"] = "Associate"
+      };
+      var html = await Core.PostFormAsync("/secure/project/SelectIssueTypeScreenScheme.jspa", query);
+      Trace.WriteLine(new { projectKey, issueTypeScreenSchemeId });
+    }
+    #region Field Configuration
+    public static async Task ProjectFieldConfigurationSchemeAddAsync(string projectKey, int fieldSchemaId) {
+      var rm = RestMonad.Empty();
+      var projectId = (await RestMonad.Empty().GetProjectAsync(projectKey)).Value.id;
+      var query = new Dictionary<string, string> {
+        ["schemeId"] = fieldSchemaId + "",
+        ["projectId"] = projectId + "",
+        ["Associate"] = "Associate"
+      };
+      var html = await Core.PostFormAsync("/secure/admin/SelectFieldLayoutScheme.jspa", query);
+      Trace.WriteLine(new { projectKey, fieldSchemaId });
+    }
+    public static async Task<int> FieldConfigurationCopyAsync(int schemeId, string newName) {
+      var existingId = await FieldConfigurationIdAsync(newName);
+      if(existingId.IsEmpty()) {
+        var rm = RestMonad.Empty();
+        var query = new Dictionary<string, string> {
+          ["id"] = schemeId + "",
+          ["fieldLayoutName"] = newName,
+          ["Copy"] = "Copy"
+        };
+        await Core.PostFormAsync("/secure/admin/CopyFieldLayout.jspa", query);
+        existingId = await FieldConfigurationIdAsync(newName);
+        Trace.WriteLine(new { copied = new { schemeId, newName } });
+      }
+      return existingId.First();
+    }
+    public static async Task FieldConfigurationDeleteAsync(int configId) {
+      var rm = RestMonad.Empty();
+      var query = new Dictionary<string, string> {
+        ["id"] = configId + "",
+        ["confirm"] = "true",
+        ["Delete"] = "Delete"
+      };
+      await Core.PostFormAsync("/secure/admin/DeleteFieldLayout.jspa", query);
+      Trace.WriteLine(new { deleted = new { configId } });
+    }
+    public static async Task<int[]> FieldConfigurationIdAsync(string name) {
+      var rm = RestMonad.Empty();
+      var html = await Core.PostFormAsync("/secure//admin/ViewFieldLayouts.jspa");
+      int[] fieldConfigId = ParseLinkId(html, name);
+      return fieldConfigId ?? new int[0];
+    }
+    public static async Task<int[]> FieldConfigurationSchemeIdAsync(string name) {
+      var rm = RestMonad.Empty();
+      var html = await Core.PostFormAsync("/secure//admin/ViewFieldLayoutSchemes.jspa");
+      int[] fieldConfigId = ParseLinkId(html, name);
+      return fieldConfigId ?? new int[0];
+    }
+    public static async Task<int[]> FieldConfigurationSchemeAddAsync(string name) {
+      var fieldSchemeId = await FieldConfigurationSchemeIdAsync(name);
+      if(fieldSchemeId.IsEmpty()) {
+        var rm = RestMonad.Empty();
+        var query = new Dictionary<string, string> {
+          ["inline"] = "true",
+          ["decorator"] = "dialog",
+          ["fieldLayoutSchemeName"] = name,
+          ["fieldLayoutSchemeDescription"] = ""
+        };
+        await Core.PostFormAsync("/secure//admin/AddFieldConfigurationScheme.jspa", query);
+        fieldSchemeId = await FieldConfigurationSchemeIdAsync(name);
+      }
+      return fieldSchemeId;
+    }
+    public static async Task FieldConfigurationSchemeDeleteAsync(int fieldSchemaId) {
+      var rm = RestMonad.Empty();
+      var query = new Dictionary<string, string> {
+        ["id"] = fieldSchemaId + "",
+        ["confirm"] = "true",
+        ["Delete"] = "Delete"
+      };
+      await Core.PostFormAsync("/secure/admin/DeleteFieldLayoutScheme.jspa", query);
+    }
+
+    public static async Task FieldConfigurationSchemeAddConfigAsync(int schemaId, int configId) {
+      var rm = RestMonad.Empty();
+      var query = new Dictionary<string, string> {
+        ["fieldConfigurationId"] = configId + "",
+        ["id"] = schemaId + "",
+        ["edited"] = "true",
+        ["Update"] = "Update"
+      };
+      var html = await Core.PostFormAsync("/secure/project/EditFieldLayoutSchemeEntity.jspa", query);
+      Trace.WriteLine(new { schemaId, configId });
+    }
+
+    private static int[] ParseLinkId(string html, string linkText) {
+      var doc = new HtmlDocument();
+      doc.LoadHtml(html);
+      var searchPath = $"//a[contains(.,'{linkText}')]";
+      var fieldConfigId = doc.DocumentNode.SelectNodes(searchPath)?
+        .Where(a => a.InnerText.Trim() == linkText)
+        .Take(1)
+        .Select(a => a.Attributes["href"].Value.Split(';').TakeLast(1)
+        .Select(q => q.Split('=').TakeLast(1))
+        )
+        .Concat()
+        .Concat()
+        .Select(int.Parse)
+        .ToArray();
+      return fieldConfigId;
     }
     #endregion
 
