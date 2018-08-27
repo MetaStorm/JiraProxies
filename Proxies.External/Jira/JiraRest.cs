@@ -487,36 +487,36 @@ namespace Jira {
         : await jiraTicket.CountDownGoNext(comment, EXEC_COUNT_FIELD, transPropName);
       return rm;
     }
-    public static async Task PutIssueFieldsAsync(this JiraTicket<string> restMonad, params object[] customFieldNameValuePairs) {
-      await restMonad.PutIssueAsync(null, customFieldNameValuePairs);
+    public static async Task<RestMonad> PutIssueFieldsAsync(this JiraTicket<string> restMonad, params object[] customFieldNameValuePairs) {
+      return await restMonad.PutIssueAsync(null, customFieldNameValuePairs);
     }
-    public static async Task PutIssueAsync(this JiraTicket<string> restMonad, object[] customFieldNameValuePairs) {
-      await restMonad.PutIssueAsync(null, customFieldNameValuePairs);
+    public static Task<RestMonad> PutIssueAsync(this JiraTicket<string> restMonad, object[] customFieldNameValuePairs) {
+      return restMonad.PutIssueAsync(null, customFieldNameValuePairs);
     }
-    public static async Task PutIssueAsync(this JiraTicket<string> restMonad, object update, object[] customFieldNameValuePairs) {
+    public static Task<RestMonad> PutIssueAsync(this JiraTicket<string> restMonad, object update, object[] customFieldNameValuePairs) {
       Passager.ThrowIf(() => customFieldNameValuePairs.Length % 2 != 0);
       var fieldDict = customFieldNameValuePairs
         .Buffer(2)
         //.Zip(customFieldNameValuePairs.Skip(1), (n, body) => new { n, v = new { body }.ToJson() })
         .Select(b => new { n = b[0], v = b[1] })
         .ToDictionary(x => x.n + "", x => x.v);
-      await restMonad.PutIssueAsync(update, fieldDict);
+      return restMonad.PutIssueAsync(update, fieldDict);
     }
-    public static async Task PutIssueAsync(this JiraTicket<string> restMonad, IDictionary<string, object> customFields) {
-      await restMonad.PutIssueAsync(null, customFields);
+    public static Task<RestMonad> PutIssueAsync(this JiraTicket<string> restMonad, IDictionary<string, object> customFields) {
+      return restMonad.PutIssueAsync(null, customFields);
     }
-    public static async Task PutIssueAsync(this JiraTicket<string> restMonad, object update, IDictionary<string, object> customFields) {
+    public static async Task<RestMonad> PutIssueAsync(this JiraTicket<string> restMonad, object update, IDictionary<string, object> customFields) {
       var issue = (await restMonad.GetIssueAsync()).Value;
       var newIssue = JiraNewIssue.Create(issue.fields.project.id, issue.fields.issuetype.name, "").ToRestMonad();
       newIssue.Value.key = restMonad.Value;
       var resolvedFields = await newIssue.ResolveCustomFieldsValues(customFields);
-      await restMonad.PutIssueAsync(update, resolvedFields);
+      return await restMonad.PutIssueAsync(update, resolvedFields);
     }
-    static async Task PutIssueAsync(this JiraTicket<string> restMonad, object update, IEnumerable<Field<object>> customFields) {
-      await (
+    static async Task<RestMonad> PutIssueAsync(this JiraTicket<string> restMonad, object update, IEnumerable<Field<object>> customFields) {
+      return await (
        from rm1 in restMonad.Switch(new { update = update ?? new { }, fields = new { } }).PostAsync(customFields.ToArray(), () => IssueTicketPath(restMonad.Value), null, true)
        from rm2 in rm1.HandleExecutedAsync(
-         (response, json) => "",
+         (response, json) => rm1,
          (exc, t) => {
            var fields = customFields.Select(cf => new { cf.field.name, cf.field.id, value = cf.GetRawValue() }).ToJson();
            throw new Exception(new { ticket = restMonad.Value, fields } + "", exc.Value);
@@ -524,11 +524,11 @@ namespace Jira {
        select rm2
        );
     }
-    public static async Task PutIssueAsync(this JiraTicket<string> restMonad, object update, object fieldsToUpdate, IEnumerable<Field<object>> customFields) {
-      await (
+    public static async Task<RestMonad> PutIssueAsync(this JiraTicket<string> restMonad, object update, object fieldsToUpdate, IEnumerable<Field<object>> customFields) {
+      return await (
        from rm1 in restMonad.Switch(new { update = update ?? new { }, fields = fieldsToUpdate ?? new { } }).PostAsync(customFields.ToArray(), () => IssueTicketPath(restMonad.Value), null, true)
        from rm2 in rm1.HandleExecutedAsync(
-         (response, json) => "",
+         (response, json) => rm1,
          (exc, t) => {
            var fields = (customFields ?? new Field<object>[0]).Select(cf => new { cf.field.name, cf.field.id, value = cf.GetRawValue() }).ToJson();
            throw new Exception(new { ticket = restMonad.Value, fields } + "", exc.Value);
@@ -536,13 +536,13 @@ namespace Jira {
        select rm2
        );
     }
-    public static Task PutIssueByFieldsAsync(this JiraTicket<string> jiraTicket, object fieldsToUpdate) {
+    public static Task<RestMonad> PutIssueByFieldsAsync(this JiraTicket<string> jiraTicket, object fieldsToUpdate) {
       return jiraTicket.PutIssueAsync(null, fieldsToUpdate, new Field<object>[0]);
     }
-    public static Task PutIssueSecurityAsync(this JiraTicket<string> jiraTicket, string name) {
+    public static Task<RestMonad> PutIssueSecurityAsync(this JiraTicket<string> jiraTicket, string name) {
       return jiraTicket.PutIssueAsync(null, MakeUpdateSecurity(name), new Field<object>[0]);
     }
-    public static Task PutIssueAssigneeAsync(this JiraTicket<string> jiraTicket, string assignee) {
+    public static Task<RestMonad> PutIssueAssigneeAsync(this JiraTicket<string> jiraTicket, string assignee) {
       return jiraTicket.PutIssueAsync(null, MakeUpdateAssignee(assignee), new Field<object>[0]);
     }
     public static async Task<RestMonad<HistoryItem[]>> RollbackAssignee(this JiraTicket<string> jiraTicket) {
@@ -1174,8 +1174,8 @@ namespace Jira {
 
       // Clean group from project role
       var x = await (from role in projectRoles
-             from actor in role.Value.actors
-             select role.ProjectRoleRemoveMemberAsync(projectKey, role.Value.id, actor)
+                     from actor in role.Value.actors
+                     select role.ProjectRoleRemoveMemberAsync(projectKey, role.Value.id, actor)
        ).WhenAllSequiential();
       return x.FirstOrDefault() ?? rm;
     }
@@ -1333,15 +1333,15 @@ namespace Jira {
       return await restMonad.GetFieldsByKeyOrName(isEquelFilter, true, filter);
     }
     private static async Task<RestMonad<Field[]>> GetFieldsByKeyOrName(this RestMonad restMonad, bool isEquelFilter, bool throwIfMissing, params string[] filter) {
-      var fields =  await restMonad.GetArrayAsync<Field>(
+      var fields = await restMonad.GetArrayAsync<Field>(
         FieldPath(),
         isEquelFilter,
         field => field.FilterValues(),
         filter);
       var fields2 = (from field in fields.Value
-                join fi in JiraConfig.FieldsToIgnore on field.name.ToLower() equals fi.ToLower() into g
-                where g.IsEmpty()
-                select field
+                     join fi in JiraConfig.FieldsToIgnore on field.name.ToLower() equals fi.ToLower() into g
+                     where g.IsEmpty()
+                     select field
               ).ToArray();
       return fields.Clone(fields2);
     }

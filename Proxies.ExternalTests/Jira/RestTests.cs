@@ -64,6 +64,7 @@ namespace Jira.Tests {
     }
     [TestMethod()]
     public async Task ResolveFields() {
+      await Core.IsJiraQA();
       var cfs =  (await (from fields in new RestMonad().GetFields()
                  from field in fields.Value.OrderBy(cf=>cf.name)
                  select field
