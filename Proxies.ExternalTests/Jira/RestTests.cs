@@ -65,11 +65,11 @@ namespace Jira.Tests {
     [TestMethod()]
     public async Task ResolveFields() {
       await Core.IsJiraQA();
-      var cfs =  (await (from fields in new RestMonad().GetFields()
-                 from field in fields.Value.OrderBy(cf=>cf.name)
-                 select field
+      var cfs = (await (from fields in new RestMonad().GetFields()
+                        from field in fields.Value.OrderBy(cf => cf.name)
+                        select field
                  )).ToList();
-      cfs.OrderBy(cf=>cf.name).ForEach(cf => Console.WriteLine(cf.name));
+      cfs.OrderBy(cf => cf.name).ForEach(cf => Console.WriteLine(cf.name));
     }
     [TestMethod]
     public async Task GetSecurityLevel() {
@@ -82,7 +82,7 @@ namespace Jira.Tests {
         }.ToRestMonad().ResolveSecurityLevel()).fields.security.id;
         var secLev = (await new RestMonad().GetSecurityLevel(int.Parse(secLevId))).Value;
         Assert.AreEqual(SECURITY_LEVEL_NAME.ToLower(), secLev.name.ToLower(), new { secLev }.ToJson(false));
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         Console.WriteLine(exc);
         throw;
       }
@@ -184,7 +184,7 @@ namespace Jira.Tests {
       // Increment Counter one more time
       try {
         (await ticket.ToJiraTicket().ExecCountStep("up", "Go on Zero")).Single();
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         Assert.IsTrue(exc.Message.Contains("Not found") && exc.Message.Contains("counter-up"), exc.Message);
       }
       issue = await jiraTicket.GetIssueAsync();
@@ -242,6 +242,18 @@ namespace Jira.Tests {
       await Task.FromResult(0);
 
     }
+    [TestMethod]
+    public async Task GetTickets() {
+      await Core.IsJiraQA();
+
+      var customFieldName = "Unique Key";
+      var project = "DIT";
+      var issueType = "Missing DOB";
+
+      var res = (await RestMonad.Empty(10).GetUnresolvedTicketsWithCustomField(project, issueType, customFieldName)).Value;
+      res.ForEach(i => Console.WriteLine(i));
+      Assert.IsTrue(res.Length > 0);
+    }
     [TestMethod()]
     public void PostIssueMissingFieldValue() {
       var customFields = new Dictionary<string, object>() {
@@ -250,7 +262,7 @@ namespace Jira.Tests {
       };
       try {
         var ticket = RestMonad.Empty().PostIssueAsync(projectKey, issueType, "kill it", null, null, null, new[] { "miami" }, customFields, null, null, null).Result;
-      } catch (AggregateException axc) {
+      } catch(AggregateException axc) {
         var message = ((System.Exception)(axc)).InnerException.Message;
         Assert.IsTrue(message.Contains("Applications List is required."), message);
         Console.WriteLine(string.Join("\n", axc.InnerExceptions.Select(e => e + "")));
@@ -267,7 +279,7 @@ namespace Jira.Tests {
       Trace.TraceInformation((await RestMonad.Empty().GetFields("External Reference Number", "ioc_apps_user_identification")).Value.ToJson());
       try {
         var ticket = RestMonad.Empty().PostIssueAsync(projectKey, issueType, "kill it", null, null, null, new[] { "miami" }, customFields, null, null, null).Result;
-      } catch (AggregateException axc) {
+      } catch(AggregateException axc) {
         var message = ((System.Exception)(axc)).InnerException.Message;
         Assert.IsTrue(message.Contains("Applications List is required."), message);
         Console.WriteLine(string.Join("\n", axc.InnerExceptions.Select(e => e + "")));
@@ -282,7 +294,7 @@ namespace Jira.Tests {
       };
       try {
         var cfs = await RestMonad.Empty().ResolveCustomFields(customFields);
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         Assert.IsTrue(exc.Message.Contains(customFields.First().Key), exc.Message);
         return;
       }
@@ -305,7 +317,7 @@ namespace Jira.Tests {
       await jiraTicket.DeleteIssueAsync();
       try {
         await jiraTicket.GetIssueAsync();
-      } catch (HttpResponseMessageException exc) {
+      } catch(HttpResponseMessageException exc) {
         Assert.AreEqual(System.Net.HttpStatusCode.NotFound, exc.Response.StatusCode);
         return;
       }
@@ -331,7 +343,7 @@ namespace Jira.Tests {
       await jiraTicket.DeleteIssueAsync();
       try {
         await jiraTicket.GetIssueAsync();
-      } catch (HttpResponseMessageException exc) {
+      } catch(HttpResponseMessageException exc) {
         Assert.AreEqual(System.Net.HttpStatusCode.NotFound, exc.Response.StatusCode);
         return;
       }
@@ -352,7 +364,7 @@ namespace Jira.Tests {
       await jiraTicket.DeleteIssueAsync();
       try {
         await jiraTicket.GetIssueAsync();
-      } catch (HttpResponseMessageException exc) {
+      } catch(HttpResponseMessageException exc) {
         Assert.AreEqual(System.Net.HttpStatusCode.NotFound, exc.Response.StatusCode);
         return;
       }
@@ -443,7 +455,7 @@ namespace Jira.Tests {
       try {
         await RestMonad.Create(newIssue).ResolveComponents();
         Assert.Fail("Must throw missing component exception.");
-      } catch (AggregateException exc) {
+      } catch(AggregateException exc) {
         Assert.IsTrue(exc.InnerExceptions[0].Message.Contains("dimok"));
         Assert.IsTrue(exc.InnerExceptions[1].Message.Contains("dimon"));
       }
@@ -620,7 +632,7 @@ namespace Jira.Tests {
       var issue = (await JiraNewIssue.Create("DIT", "Fix Data", IssueClasses.Issue.DoSkip("Test rollback")).ToJiraPost().PostIssueAsync(custom));
       try {
         await issue.Value.key.ToJiraTicket().RollbackAssignee();
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         Assert.IsTrue(exc.Message.StartsWith("No assignee re-assignment happened in ticket"));
         await issue.Value.key.ToJiraTicket().DeleteIssueAsync();
         return;
@@ -709,7 +721,7 @@ namespace Jira.Tests {
     public async Task PostComments() {
       Assert.Fail("Hangs on transition properties error");
       var issue = (await "AMF-54".ToJiraTicket().GetIssueAsync()).Value;
-      if (issue.fields.status.name.ToLower() == "closed") {
+      if(issue.fields.status.name.ToLower() == "closed") {
         await issue.key.ToJiraTicket().PostIssueTransitionAsync("reopen", false);
         issue = (await issue.key.ToJiraTicket().GetIssueAsync()).Value;
       }

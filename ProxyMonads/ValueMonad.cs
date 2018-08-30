@@ -19,10 +19,14 @@ using CommonExtensions;
 using System.Net;
 using System.Diagnostics;
 using System.Collections.Concurrent;
+using System.Runtime.ExceptionServices;
+using System.Threading;
 
 namespace Wcf.ProxyMonads {
   #region RestMonad
   public class RestMonad {
+    public static RestMonad Empty(int timeoutInSeconds) => Empty(TimeSpan.FromSeconds(timeoutInSeconds));
+    public static RestMonad Empty(TimeSpan timeOut) { return new RestMonad { Timeout = timeOut }; }
     public static RestMonad Empty() { return new RestMonad(); }
     public static T Empty<T>() where T : RestMonad, new() { return new T(); }
 
@@ -53,6 +57,8 @@ namespace Wcf.ProxyMonads {
       }
     }
     public PasswordClass Password { get; set; }
+
+    public TimeSpan Timeout { get; set; } = TimeSpan.Zero;
     public Cookie SessionID { get; set; }
 
     public bool HasSessionID { get { return SessionID != null && !string.IsNullOrWhiteSpace(SessionID.Value); } }
@@ -71,7 +77,7 @@ namespace Wcf.ProxyMonads {
     public static ConcurrentDictionary<string, Task<string>> SessionIDs = new ConcurrentDictionary<string, Task<string>>();
     public static async Task<Cookie> GetUserCookie(string user) {
       Task<string> session;
-      if (SessionIDs.TryGetValue(user, out session) && SessionIDs[user].Status == TaskStatus.RanToCompletion) {
+      if(SessionIDs.TryGetValue(user, out session) && SessionIDs[user].Status == TaskStatus.RanToCompletion) {
         return CreateJiraSessionCookie(await SessionIDs[user]);
       }
       return null;
@@ -83,7 +89,7 @@ namespace Wcf.ProxyMonads {
 
     public RestMonad() { }
     public RestMonad(Cookie sessionID) {
-      if (sessionID != null)
+      if(sessionID != null)
         this.SessionID = sessionID;
     }
 
@@ -125,6 +131,7 @@ namespace Wcf.ProxyMonads {
       clone.UserName = this.UserName;
       clone.Password = this.Password;
       clone.SessionID = this.SessionID;
+      clone.Timeout = Timeout;
       return clone;
     }
     public static string ParseError(string json) {
@@ -168,12 +175,16 @@ namespace Wcf.ProxyMonads {
     }
     public Func<string, PasswordClass, string, HttpClient> BuildCustomClientFactory() {
       Func<string, PasswordClass, string, HttpClient> customClient = (userName, password, baseAddress) => {
-        var c = new HttpClient(new HttpClientHandler() { UseCookies = false }, true);
-        if (BaseAddress == null) BaseAddress = new Uri(baseAddress);
-        if (UserName == null) UserName = userName;
-        if (Password == null) Password = password;
+        var h = new TimeoutHandler { InnerHandler = new HttpClientHandler() { UseCookies = false } };
+        if(Timeout != TimeSpan.Zero)
+          h.DefaultTimeout = Timeout;
+        var c = new HttpClient(h, true);
+        c.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+        if(BaseAddress == null) BaseAddress = new Uri(baseAddress);
+        if(UserName == null) UserName = userName;
+        if(Password == null) Password = password;
         c.BaseAddress = BaseAddress;
-        if (!string.IsNullOrWhiteSpace(UserName))
+        if(!string.IsNullOrWhiteSpace(UserName))
           c.InitBasicAuthenticationHeader(UserName, Password.GetValue());
         return c;
       };
@@ -186,6 +197,7 @@ namespace Wcf.ProxyMonads {
       return RestMonad.ToString(this);
     }
     public static RestMonad<T> Create<T>(T value) { return new RestMonad<T>(value); }
+    public static RestMonad<T> Create<T>(T value, RestMonad restMonad) { return new RestMonad<T>(value, restMonad); }
     public static RestMonad Create(Cookie sessionID) { return new RestMonad() { SessionID = sessionID }; }
     public static RestMonad CreateWithSession(string sessionID) { return new RestMonad() { SessionID = CreateJiraSessionCookie(sessionID) }; }
 
@@ -214,16 +226,16 @@ namespace Wcf.ProxyMonads {
   }
 
   #region RestMonad<T>
-  public class RestMonad<T> : RestMonad {
+  public class RestMonad<T> :RestMonad {
 
     T[] _values = new T[0];
     public T Value {
       get {
-        if (!_values.Any()) throw new NullReferenceException("Value property was never initialized with any value.");
+        if(!_values.Any()) throw new NullReferenceException("Value property was never initialized with any value.");
         return _values[0];
       }
       set {
-        if (_values.Any()) throw new InvalidOperationException("Value property has already been set.");
+        if(_values.Any()) throw new InvalidOperationException("Value property has already been set.");
         _values = new T[] { value };
       }
     }
@@ -253,13 +265,13 @@ namespace Wcf.ProxyMonads {
     }
     public V Clone<V, TNew>(Func<T, TNew> valueFactory) where V : RestMonad<TNew>, new() {
       var clone = this.Clone<V>();
-      if (valueFactory != null)
+      if(valueFactory != null)
         clone.SetValue(valueFactory(this.Value));
       return clone;
     }
     public V Clone<V, TNew>(Func<TNew> valueFactory) where V : RestMonad<TNew>, new() {
       var clone = this.Clone<V>();
-      if (valueFactory != null)
+      if(valueFactory != null)
         clone.SetValue(valueFactory());
       return clone;
     }
@@ -323,67 +335,73 @@ namespace Wcf.ProxyMonads {
     async public static Task<RestMonad<HttpResponseMessage>> SendAsync(this RestMonad<HttpClient> client, HttpMethod method, string path, bool recurse = false) {
       var sw = Stopwatch.StartNew();
       try {
-        if (client.BaseAddress == null) client.BaseAddress = client.Value.BaseAddress;
+        if(client.BaseAddress == null) client.BaseAddress = client.Value.BaseAddress;
         CheckApiAddress(client, path);
         var message = new HttpRequestMessage(method, client.ApiAddress);
         try {
           var hrm = await SendAsync(client, message);
-          if (!recurse && hrm.Value.StatusCode == HttpStatusCode.Unauthorized && RestMonad.UseSessionID) {
+          if(!recurse && hrm.Value.StatusCode == HttpStatusCode.Unauthorized && RestMonad.UseSessionID) {
             await RestMonad.SetDefaultSessionID();
             return await SendAsync(client, method, "", true);
           }
           return hrm;
-        } catch (HttpResponseMessageException exc) {
-          if (exc.Response.StatusCode == HttpStatusCode.Unauthorized && RestMonad.UseSessionID) {
+        } catch(HttpResponseMessageException exc) {
+          if(exc.Response.StatusCode == HttpStatusCode.Unauthorized && RestMonad.UseSessionID) {
             await RestMonad.SetDefaultSessionID();
             return await SendAsync(client, message);
           }
           throw;
         }
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         throw new HttpRestException(client.Value.BaseAddress + client.ApiAddress, exc);
       } finally {
-        if (JiraMonad.JiraConfig.TraceRequests)
+        if(JiraMonad.JiraConfig.TraceRequests)
           Debug.WriteLine(new { SendAsync = sw.ElapsedMilliseconds, path, method });
       }
     }
 
     private static async Task<RestMonad<HttpResponseMessage>> SendAsync(RestMonad<HttpClient> client, HttpRequestMessage message) {
       var sessionID = client.HasSessionID ? client.SessionID : await RestMonad.GetUserCookie(client.UserName);
-      if (sessionID != null) {
+      if(sessionID != null) {
         //Debug.WriteLine(sessionID.ToJson());
         client.Value.DefaultRequestHeaders.Authorization = null;
         message.Headers.Add("Cookie", sessionID.Name + "=" + sessionID.Value);
       }
-      return client.Switch(await client.Value.SendAsync(message));
+      var x = await client.Value.SendAsync(message).WithError();
+      if(x.error != null) {
+        JiraMonad.JiraConfig.LogError(x.error);
+        if(Debugger.IsAttached) Debugger.Break();
+        ExceptionDispatchInfo.Capture(x.error).Throw();
+      }
+      return client.Switch(x.value);
     }
 
     public static async Task<RestMonad<HttpResponseMessage>> PostAsync(this RestMonad<HttpClient> client, string path, StringContent content, bool doPut) {
       var sw = Stopwatch.StartNew();
       try {
         return await PostAsyncImpl(client, path, content, doPut);
-      } catch (HttpResponseMessageException exc) {
-        if (exc.Response.StatusCode == HttpStatusCode.Unauthorized && RestMonad.UseSessionID) {
+      } catch(HttpResponseMessageException exc) {
+        if(exc.Response.StatusCode == HttpStatusCode.Unauthorized && RestMonad.UseSessionID) {
           await RestMonad.SetDefaultSessionID();
           return await PostAsyncImpl(client, path, content, doPut);
         }
         throw;
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         throw new HttpRestException(client.Value.BaseAddress + path, exc);
       } finally {
-        if (JiraMonad.JiraConfig.TraceRequests)
+        if(JiraMonad.JiraConfig.TraceRequests)
           Debug.WriteLine(new { PostAsync = sw.ElapsedMilliseconds, path, doPut });
       }
     }
 
     private static async Task<RestMonad<HttpResponseMessage>> PostAsyncImpl(RestMonad<HttpClient> client, string path, StringContent content, bool doPut) {
       var sessionID = client.HasSessionID ? client.SessionID : await RestMonad.GetUserCookie(client.UserName);
-      if (sessionID != null) {
+      if(sessionID != null) {
         //Debug.WriteLine(sessionID.ToJson());
         client.Value.DefaultRequestHeaders.Authorization = null;
         content.Headers.Add("Cookie", sessionID.Name + "=" + sessionID.Value);
       }
-      if (client.BaseAddress == null) client.BaseAddress = client.Value.BaseAddress;
+      if(client.BaseAddress == null) client.BaseAddress = client.Value.BaseAddress;
       CheckApiAddress(client, path);
       Func<Task<HttpResponseMessage>> go = async () => doPut
         ? await client.Value.PutAsync(client.ApiAddress, content)
@@ -392,9 +410,9 @@ namespace Wcf.ProxyMonads {
     }
 
     private static void CheckApiAddress(RestMonad<HttpClient> client, string path) {
-      if (string.IsNullOrWhiteSpace(client.ApiAddress))
+      if(string.IsNullOrWhiteSpace(client.ApiAddress))
         client.ApiAddress = path;
-      else if (!string.IsNullOrWhiteSpace(path))
+      else if(!string.IsNullOrWhiteSpace(path))
         throw new Exception(new { client = new { client.ApiAddress }, path, error = "ApiAddress or path must be empty" } + "");
 
       //if(Uri.TryCreate(path, UriKind.RelativeOrAbsolute, out var pathUri) && pathUri.IsAbsoluteUri) {
@@ -413,19 +431,19 @@ namespace Wcf.ProxyMonads {
       return client;
     }
     public static IEnumerable<Exception> All(this Exception ex, bool skipAggregate = false) {
-      if (ex == null) throw new ArgumentNullException("ex");
+      if(ex == null) throw new ArgumentNullException("ex");
       var innerException = ex;
       do {
-        if (!(innerException is AggregateException))
+        if(!(innerException is AggregateException))
           yield return innerException;
         innerException = innerException.InnerException;
       }
-      while (innerException != null);
+      while(innerException != null);
     }
     public static string FormatRest<E>(this E e) where E : Exception { return RestMonad.FormatException(e); }
     public static bool OAuthHeaderFactory(this HttpClient client) {
       var auth = client.DefaultRequestHeaders.Authorization;
-      if (auth != null && auth.Scheme == "OAuth") {
+      if(auth != null && auth.Scheme == "OAuth") {
         var oAuthParams = client.DefaultRequestHeaders.Authorization.Parameter;
         var oa = JsonConvert.DeserializeAnonymousType(oAuthParams, new { key = "", secret = "" });
         OAuthBase oAuth = new OAuthBase();

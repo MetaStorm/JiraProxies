@@ -1424,10 +1424,13 @@ namespace Jira {
       var res = await JiraRest.Create(jrqFilter).GetTicketsAsync();
       return res.Value.issues.ToRestMonad(res);
     }
-    public static async Task<RestMonad<Jira.Json.SearchResult<Jira.Json.IssueClasses.Issue>>> GetTicketsAsync(this JiraRest<JqlFilter> restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<SearchResult<IssueClasses.Issue>>> onError = null) {
-      return await restMonad.GetTicketsAsync<Jira.Json.IssueClasses.Issue>(onError);
+    public static async Task<RestMonad<SearchResult<Issue>>> GetTicketsAsync(this RestMonad<JqlFilter> restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<SearchResult<IssueClasses.Issue>>> onError = null) {
+      return await restMonad.GetTicketsAsync<Issue>(onError);
     }
-    public static async Task<RestMonad<Jira.Json.SearchResult<TIssue>>> GetTicketsAsync<TIssue>(this JiraRest<JqlFilter> restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<SearchResult<TIssue>>> onError) {
+    public static async Task<RestMonad<SearchResult<T>>> GetTicketsAsync<T>(this RestMonad<JqlFilter> restMonad, T sample, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<SearchResult<T>>> onError = null) {
+      return await restMonad.GetTicketsAsync<T>(onError);
+    }
+    public static async Task<RestMonad<SearchResult<TIssue>>> GetTicketsAsync<TIssue>(this RestMonad<JqlFilter> restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<SearchResult<TIssue>>> onError) {
       var filter = restMonad.Value;
       var queryParams = new[] {
         Tuple.Create("jql", filter.Jql.ToString()),
@@ -1442,6 +1445,31 @@ namespace Jira {
       if(expand.Any())
         queryParams.Add(Tuple.Create("expand", string.Join(",", expand)));
       return await restMonad.GetAsync<SearchResult<TIssue>>(SearchPath(queryParams.ToArray()), onError);
+    }
+
+    public static async Task<RestMonad<(string key, object value)[]>> GetUnresolvedTicketsWithCustomField(this RestMonad restMonad, string project, string issueType, string customFieldName) {
+      var jrqFilter = new JqlFilter {
+        MaxResults = 10000,
+        ExpandTransitions = false,
+        Jql = new JqlFilter.JQL {
+          Project = project,
+          IssueType = issueType,
+          FieldsQuery = new[] {
+            "Resolution = Unresolved"
+          },
+          OrderBy = new List<string> { "CREATED" }
+        }
+      };
+      return await restMonad.GetTicketsWithCustomField(jrqFilter, customFieldName);
+    }
+
+    private static async Task<RestMonad<(string key, object value)[]>> GetTicketsWithCustomField(this RestMonad restMonad, JqlFilter jrqFilter, string customFieldName) {
+      var customField = (await restMonad.GetField(customFieldName)).Value;
+      Passager.ThrowIf(() => customField == null, new { customFieldName } + "");
+      jrqFilter.Fields = new[] { customField.id };
+
+      var res = await RestMonad.Create(jrqFilter, restMonad).GetTicketsAsync(new { key = "", id = "", fields = new Dictionary<string, object>(), transitions = new IssueTransitions.Transition[0] });
+      return res.Switch(res.Value.issues.Select(i => (i.key, value: i.fields[customField.id])).ToArray());
     }
 
     public static async Task<IssueClasses.Issue[]> Search(this RestMonad rester, string project, string issueTypeName, string stateName, int maxResults, bool expandChangelog, string[] customFields) {
