@@ -71,15 +71,44 @@ namespace Jira.Tests {
 
     [TestMethod]
     public async Task ProjectIssueTypeSchemaId() {
-      var projectKey = "IM";
-      var issueTypeSchemeId = await RestMonad.Empty().GetProjectIssueTypeSchemeId(projectKey);
-      Console.WriteLine(new { issueTypeSchemeId });
+      await Core.IsJiraDev();
+      var projectKey = "AMEX";
+      var rm = await RestMonad.Empty().GetProjectIssueTypeSchemeId(projectKey);
+      Console.WriteLine(new { projectKey, issueTypeScheme = rm.Value });
+      Assert.IsTrue(rm.Value.id > 0);
+      var projectId = int.Parse((await rm.GetProjectAsync(projectKey)).Value.id);
+      Assert.IsTrue(projectId > 0);
+      await Rest.ProjectIssueTypeSchemeSetAsync(projectId, 14070);
+
+
+      // Set schemes back
+      await Rest.ProjectIssueTypeSchemeSetAsync(projectId, rm.Value.id);
+    }
+    [TestMethod]
+    [TestCategory("Dev")]
+    [TestCategory("Manual")]
+    [TestCategory("Project")]
+    public async Task ProjectCleanWorkflows_M() {
+      //Assert.Inconclusive("Manually run");
+      await Core.IsJiraDev();
+      var res = await (
+        from dp in RestMonad.Empty().ProjectCleanWorkflowsAsync("ACW").WithError()
+        select dp
+        .SideEffect(se => Console.WriteLine(se.ToJson())));
+      Console.WriteLine(res);
+      Assert.IsNull(res.error);
     }
     [TestMethod]
     public async Task ProjectWorkflowSchema() {
-      var projectKey = "IM";
-      var id = await RestMonad.Empty().GetProjectWorkflowShemeAsync(projectKey);
-      Console.WriteLine(id.Value.ToJson());
+      await Core.IsJiraDev();
+      var projectKey = "AMEX";
+      var rm = RestMonad.Empty();
+      var projectId = int.Parse((await rm.GetProjectAsync(projectKey)).Value.id);
+      var workflowSchemeIdNew = 12974;
+      var workflowSchemeId = (await rm.ProjectWorkflowShemeGetAsync(projectKey)).Value.parentId;
+      Console.WriteLine(new { workflowSchemeId });
+      await Rest.ProjectWorkflowSchemeSetAsync(projectId, workflowSchemeIdNew);
+      await Rest.ProjectWorkflowSchemeSetAsync(projectId, workflowSchemeId);
     }
     [TestMethod]
     public async Task ProjectIssueTypeScreenScheme() {

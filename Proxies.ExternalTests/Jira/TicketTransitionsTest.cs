@@ -274,7 +274,7 @@ namespace Proxies.ExternalTests {
     public async Task ProjectDestroy() {
       // Assert.Inconclusive("To be used manually destroy the project");
       await Rest.IsJiraDev();
-      var jo = await RestMonad.Empty().DestroyProjectAsync("ACW");
+      var jo = await RestMonad.Empty().DestroyProjectAsync("AMEX");
       Console.WriteLine(jo.ToJson());
       Assert.IsTrue(jo.errors.IsEmpty());
     }

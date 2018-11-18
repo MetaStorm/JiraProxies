@@ -495,8 +495,20 @@ namespace Jira.Tests {
       Console.WriteLine(ticket);
     }
     [TestMethod]
+    public async Task ScriptedFieldGet_M() {
+      Assert.Inconclusive("For manual testing only");
+      await Core.IsJiraDev();
+      var fieldName = "e-Docs";
+      var ticket = "ACW-112";// 668";
+      var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;
+      var fieldValue = issue.ExtractCustomField<object>(fieldName).Single() + "";
+      var fieldValue2 = issue.ExtractCustomField<string>(fieldName).Single() + "";
+      Assert.IsFalse(string.IsNullOrWhiteSpace(fieldValue));
+      Assert.AreEqual(fieldValue, fieldValue2);
+    }
+    [TestMethod]
     public async Task CustomFieldGet_M() {
-      //Assert.Inconclusive("For manual testing only");
+      Assert.Inconclusive("For manual testing only");
       var fieldName = "Banker";
       var ticket = "SUI-1199";// 668";
       var issue = (await ticket.ToJiraTicket().GetIssueAsync()).Value;

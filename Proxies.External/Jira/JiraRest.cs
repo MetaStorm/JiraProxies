@@ -236,7 +236,21 @@ namespace Jira {
     #endregion
     #endregion
 
+    public static async Task ProjectIssueTypeSchemeSetAsync(int projectId, int issueTypeSchemeId) {
+      var values = new Dictionary<string, string> {
+        { "createType", "chooseScheme" },
+        { "projectId", projectId + "" },
+        { "fieldId", "" },
+        { "schemeId", issueTypeSchemeId+"" },
+        { "sameAsProjectId", "" },
+        { "OK ", "OK" },
+      };
+      var requestUri = "/secure/admin/SelectIssueTypeSchemeForProject.jspa";
+      await Core.PostFormAsync(requestUri, values);
+    }
     public static async Task<string> DeleteIssueTypeSchemeAsync(int issueTypeSchemeId) {
+      if(issueTypeSchemeId == 10000)
+        throw new Exception(new { defaultIssueTypeScheme = new { issueTypeSchemeId } } + "");
       var values = new Dictionary<string, string> {
         { "Delete", "Delete" },
         { "schemeId", issueTypeSchemeId+"" },
@@ -325,7 +339,7 @@ namespace Jira {
         { "decorator", "dialog" }
       };
       var requestUri = "/secure/admin/workflows/ImportWorkflowFromXml.jspa";
-      await Core.PostFormAsync(requestUri, values);
+      await Core.PostFormAsync2(requestUri, values);
       return new { name, description, workflowXML } + "";
     }
     public static async Task<string> DeleteWorkflowAsync(string name) {
@@ -1069,13 +1083,36 @@ namespace Jira {
       from p1 in p.GetProjectAsync(rm.Value.key)
       select p1;
 
+    public static Task<IList<RestMonad<string>>> ProjectCleanWorkflowsAsync(this RestMonad rm, string projectKey, string keyPhrase = "DELETE_WF")
+      => rm.ProjectCleanWorkflowsAsync(projectKey, new string[0], keyPhrase);
+    public static Task<IList<RestMonad<string>>> ProjectCleanWorkflowsAsync(this RestMonad rm, string projectKey,string issueTypeToClean, string keyPhrase = "DELETE_WF")
+      => rm.ProjectCleanWorkflowsAsync(projectKey, new[] { issueTypeToClean }, keyPhrase);
+    public static async Task<IList<RestMonad<string>>> ProjectCleanWorkflowsAsync(this RestMonad rm, string projectKey, IList<string> issueTypesToClean, string keyPhrase = "DELETE_WF") {
+      var project = (await rm.GetProjectAsync(projectKey)).Value;
+      Passager.ThrowIf(() => !keyPhrase.IsNullOrWhiteSpace() && !project.description.Contains(keyPhrase));
+      // Delete tickets
+      await (await (from res in rm.Search(projectKey, "", "", 0, false, new string[0])
+                    from issue in res
+                    select issue.id.ToJiraTicket().DeleteIssueAsync()
+                      )).WhenAllSequiential(); ;
+      // Map Workflow to IssueType
+      var defaultWorkflow = projectKey + ": Task Management Workflow";
+      var issueTypes = project.issueTypes.AsEnumerable();
+      if(issueTypesToClean?.Count > 0)
+        issueTypes = (from it in issueTypes
+                      join itd in issueTypesToClean on it.name equals itd
+                      select it);
+      return await (from it in issueTypes
+                    select rm.WorkflowIssueTypeAttach(projectKey, it.name, defaultWorkflow)
+                     ).WhenAllSequiential();
+    }
     public static Task<RestMonad<HttpResponseMessage>> DeleteProjectAsync(this RestMonad RestMonad, string projectKey) =>
       RestMonad.DeleteAsync(ProjectPath(projectKey)(ApiPath));
-    public static async Task<(JObject jObject, IList<Exception> errors)> DestroyProjectAsync(this RestMonad rm, string projectKey) {
+    public static async Task<(JObject jObject, IList<Exception> errors)> DestroyProjectAsync(this RestMonad rm, string projectKey, bool deleteProject = false) {
       var project = (await rm.GetProjectAsync(projectKey)).Value;
       Passager.ThrowIf(() => !project.description.Contains("DELETE_ME"));
       var issueTypeSchemeId = (await rm.GetProjectIssueTypeSchemeId(projectKey)).Value.id;
-      var workflowSchemeId = (await rm.GetProjectWorkflowShemeAsync(projectKey)).Value.parentId;
+      var workflowSchemeId = (await rm.ProjectWorkflowShemeGetAsync(projectKey)).Value.parentId;
       var workflows = (await rm.GetWorkflowShemeWorkflowAsync(workflowSchemeId)).Value.Select(w => w.workflow).ToArray();
       var projectIssueTypeScreenSchemeRest = (await rm.GetProjectIssueTypeSceenScheme(projectKey).WithError());
       var projectIssueTypeScreenScheme = projectIssueTypeScreenSchemeRest.error == null
@@ -1085,8 +1122,10 @@ namespace Jira {
       var screenIds = projectIssueTypeScreenScheme.screenIds;
       //Assert.Inconclusive("Remove to delete project");
       var errors = new List<Exception>();
-      var dp = await (from p in WithErrorMonad.Create(() => rm.DeleteProjectAsync(projectKey))()
-                      select new { issueTypeSchemeId, error = readError(p.error) }
+      var dp = deleteProject == false
+        ? new { issueTypeSchemeId, error = (Exception)null }
+        : await (from p in WithErrorMonad.Create(() => rm.DeleteProjectAsync(projectKey))()
+                 select new { issueTypeSchemeId, error = readError(p.error) }
                       );
       var dit = await WithErrorMonad.Create(() => DeleteIssueTypeSchemeAsync(issueTypeSchemeId))();
 

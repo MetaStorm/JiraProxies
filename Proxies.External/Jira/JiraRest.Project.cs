@@ -148,7 +148,19 @@ namespace Jira {
     }
 
     #region Workflow IssueType
-    public static Task<RestMonad<Json.ProjectConfigResponse>> GetProjectWorkflowShemeAsync(this RestMonad rm, string projectKey) =>
+    public static async Task<string> ProjectWorkflowSchemeSetAsync(int projectId, int workflowSchemeId) {
+      var values = new Dictionary<string, string> {
+        { "projectId", projectId+ "" },
+        { "draftMigration", "false" },
+        { "projectIdsParameter", projectId + "" },
+        { "schemeId", workflowSchemeId+"" },
+        { "Associate", "Associate" }
+      };
+      var requestUri = "/secure/project/SelectProjectWorkflowSchemeStep2!default.jspa";
+      var html  = await Core.PostFormAsync(requestUri, values);
+      return html;
+    }
+    public static Task<RestMonad<Json.ProjectConfigResponse>> ProjectWorkflowShemeGetAsync(this RestMonad rm, string projectKey) =>
       rm.GetAsync(() => WorkflowScheme(projectKey) + "?_" + DateTime.Now.Ticks, Core.ReturnDebug<ProjectConfigResponse>, null, null);
     static async Task<RestMonad<Json.ProjectConfigResponse>> WorkflowIssueTypeDraftStart(this RestMonad rm, string projectKey) {
       return await rm.PostAsync<Json.ProjectConfigResponse>(() => WorkflowScheme(projectKey) + "?_" + DateTime.Now.Ticks, new { });

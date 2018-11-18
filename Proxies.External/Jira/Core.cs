@@ -184,7 +184,57 @@ namespace Jira {
                             }, null, null));
       }
     }
+    public static async Task<string> PostFormAsync2(string requestUri, Dictionary<string, string> values) {
+      using(var client = new HttpClient()) {
+        client.BaseAddress = new Uri(JiraMonad.JiraServiceBaseAddress());
+        client.InitBasicAuthenticationHeader(JiraMonad.JiraPowerUser(), JiraMonad.JiraPowerPassword());
+        client.DefaultRequestHeaders.Accept.Clear();
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
+        var requestContent = new MyFormUrlEncodedContent(values);
+        requestContent.Headers.ContentType.MediaType = "application/x-www-form-urlencoded";
+        requestContent.Headers.ContentType.CharSet = "UTF-8";
+        requestContent.Headers.Add("X-Atlassian-Token", "no-check");
+        return await (await from h in client.PostAsync(requestUri, requestContent)
+                            select h.HandleExecutedAsync((r, json) => {
+                              var errors = RestMonad.ParseJspError(json);
+                              errors.Where(error => error.Contains("name already exists"))
+                              .ForEach(error =>
+                                throw new HttpResponseMessageException(r, json, r.RequestMessage.RequestUri + "", error, null) { ResponseErrorType = ResponceErrorType.AlreadyExists });
+                              if(errors.IsEmpty())
+                                return json;
+                              throw new Exception(errors.Flatten("\n"));
+                            }, null, null));
+      }
+    }
+    public class MyFormUrlEncodedContent :ByteArrayContent {
+      public MyFormUrlEncodedContent(IEnumerable<KeyValuePair<string, string>> nameValueCollection)
+          : base(MyFormUrlEncodedContent.GetContentByteArray(nameValueCollection)) {
+        base.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
+      }
+      private static byte[] GetContentByteArray(IEnumerable<KeyValuePair<string, string>> nameValueCollection) {
+        if(nameValueCollection == null) {
+          throw new ArgumentNullException("nameValueCollection");
+        }
+        StringBuilder stringBuilder = new StringBuilder();
+        foreach(KeyValuePair<string, string> current in nameValueCollection) {
+          if(stringBuilder.Length > 0) {
+            stringBuilder.Append('&');
+          }
+
+          stringBuilder.Append(MyFormUrlEncodedContent.Encode(current.Key));
+          stringBuilder.Append('=');
+          stringBuilder.Append(MyFormUrlEncodedContent.Encode(current.Value));
+        }
+        return Encoding.Default.GetBytes(stringBuilder.ToString());
+      }
+      private static string Encode(string data) {
+        if(string.IsNullOrEmpty(data)) {
+          return string.Empty;
+        }
+        return System.Net.WebUtility.UrlEncode(data).Replace("%20", "+");
+      }
+    }
     public static async Task<RestMonad<HttpResponseMessage>> PostAsync(this RestMonad post, Func<string> pathFactory, object jPost, JsonSerializerSettings settings, bool doPut) {
       string json = JsonConvert.SerializeObject(jPost, settings);
       var content = json.ContentFactory();

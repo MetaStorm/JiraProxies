@@ -154,6 +154,8 @@ namespace Jira.Json {
     private static object ThrowShemaTypeNotFound<T>(T value, Schema schema) {
       if (value == null) return value;
       if (JiraMonad.JiraConfig.FieldTypesToIgnore.Any(ft => ft.ToLower() == schema.jiraType.ToLower())) return value;
+      // Turn off InvalidEnumArgumentException
+      return value;
       throw new InvalidEnumArgumentException(new { schema = new { schema.type, schema.jiraType }, error = "JIRA type is not supported" } + "");
     }
 
