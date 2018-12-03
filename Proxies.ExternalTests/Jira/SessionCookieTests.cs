@@ -53,7 +53,7 @@ namespace Wcf.ProxyMonads.Tests {
       ticket = await ticket.Value.key.ToJiraTicket(cookie).GetIssueAsync();
       Assert.IsTrue(ticket.Value.IsLocked, new { ticket.Value.IsLocked } + "");
       Assert.AreEqual(resolvedComment.LockIt(), ticket.Value.fields.comment.comments.Last().body);
-
+      await ticket.Value.key.ToJiraTicket().DeleteIssueAsync();
       // invalidate SessionID cookie
       Trace.TraceInformation("***************************************************************");
       cookie.Value = "32135465498613165749687";

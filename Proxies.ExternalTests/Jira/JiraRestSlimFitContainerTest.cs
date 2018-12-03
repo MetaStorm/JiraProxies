@@ -15,22 +15,6 @@ namespace Proxies.ExternalTests.Jira {
     public async Task JiraSelfie() {
       await new slim_fit_tests.JiraRest().JiraSelfie();
     }
-    [TestMethod]
-    public void JiraLastTicket() {
-      Console.WriteLine(new slim_fit_tests.JiraRest().LastTicket());
-    }
-    [TestMethod]
-    public async Task JiraNewTicket() {
-      try {
-        Console.WriteLine(await new slim_fit_tests.JiraRest().NewTicket());
-      } catch (Exception exc) {
-        Console.WriteLine(string.Join("\n", exc.Messages()));
-        Console.WriteLine(exc + "");
-        Assert.IsTrue(exc.ToMessages().Contains("Applications And Services"));
-        return;
-      }
-      Assert.Fail("Should not be here.");
-    }
   }
 }
 namespace slim_fit_tests {

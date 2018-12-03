@@ -102,12 +102,20 @@ namespace Jira {
     }
 
     static async Task<IssueTransitions.Transition> FillIssueTransitionProperties(this RestMonad restMonad, Lazy<Task<string>> workflowName, IssueTransitions.Transition transition) {
-      var xTrans = await transition.FillIssueTransitionPropertiesFromCache(workflowName);
-      if(xTrans.Item2) {
-        return transition;
+      if(false) {
+        var xTrans = await transition.FillIssueTransitionPropertiesFromCache(workflowName);
+        if(xTrans.Item2) {
+          return transition;
+        }
       }
-      transition.PropertiesGetter = LazyMe(async ()
-        => (await restMonad.GetAsync<Workflow.Transition.Property[]>(WorkflowTransitionPropertiesPath(await workflowName.Value, transition.SafeId()), null)).Value);
+
+      var l = (
+        from wfh in workflowName.Value.WithError()
+        from rm in wfh.error == null
+        ? restMonad.GetAsync<Workflow.Transition.Property[]>(WorkflowTransitionPropertiesPath(wfh.value, transition.SafeId()), null).WithError()
+        : Task.FromResult((value: RestMonad.Create(new Workflow.Transition.Property[0], restMonad), wfh.error))
+        select (rm.value?.Value, wfh.error ?? rm.error));
+      transition.PropertiesGetter = LazyMe(async () => (await l));
       return transition;
       /*
       var props = await restMonad.GetAsync<Workflow.Transition.Property[]>(WorkflowTransitionPropertiesPath(await workflowName.Value, transition.SafeId()), null);
@@ -264,7 +272,7 @@ namespace Jira {
         return issue.transitions.Where(t => t.name.ToLower() == transitionOrPropertyName.ToLower()).Counter(1).ToArray();
       } catch(Exception exc) {
         try {
-          return issue.FindTransitionByProperty(transitionOrPropertyName).Counter(1, _ => { throw new TransitionsException("No 'next' transition found by property"); }, c => { throw new TooManyTransitionsException(issue); }).Select(t => t.Item1).ToArray();
+          return issue.FindTransitionByProperty(transitionOrPropertyName).Counter(1, _ => { throw new TransitionsException($"No '{transitionOrPropertyName}' transition found by property"); }, c => { throw new TooManyTransitionsException(issue); }).Select(t => t.Item1).ToArray();
         } catch(TooManyTransitionsException) {
           throw;
         } catch(TransitionsException exc2) {
@@ -352,7 +360,10 @@ namespace Jira {
       return issue.transitions == null
         ? new Tuple<IssueTransitions.Transition, Workflow.Transition.Property>[0]
         : issue.transitions
-        .SelectMany(t => t.Properties.Select(p => new { t, p, ok = p.Find(name, value) }))
+        .SelectMany(t => {
+          if(t.PropertiesImpl.error != null) throw new Exception("Transition Properties Error", t.PropertiesImpl.error);
+          return t.Properties.Select(p => new { t, p, ok = p.Find(name, value) });
+        })
         .Where(x => x.ok)
         .Select(x => Tuple.Create(x.t, x.p));
     }
@@ -365,6 +376,7 @@ namespace Jira {
       return t.FindProperty(name, null);
     }
     public static IEnumerable<Workflow.Transition.Property> FindProperty(this IssueTransitions.Transition t, string name, string value) {
+      if(t.PropertiesImpl.error != null) throw new Exception("Transition Properties Error", t.PropertiesImpl.error);
       return t.Properties.Where(p => p.Find(name, value));
     }
 

@@ -50,7 +50,9 @@ namespace Jira.Tests {
       await it.ToRestMonad().DeleteIssueTypeAsync();
     }
     [TestMethod()]
+    [TestCategory("Manual")]
     public async Task WorkflowIssueTypeDraftStartStop() {
+      Assert.Inconclusive();
       var rm = RestMonad.Empty();
       var projectKey = "IM";
       var issueType = "ZZZ Issue Type " + CommonExtensions.Helpers.RandomStringUpper(4);
@@ -70,7 +72,9 @@ namespace Jira.Tests {
 
 
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task ProjectIssueTypeSchemaId() {
+      Assert.Inconclusive();
       await Core.IsJiraDev();
       var projectKey = "AMEX";
       var rm = await RestMonad.Empty().GetProjectIssueTypeSchemeId(projectKey);
@@ -99,7 +103,9 @@ namespace Jira.Tests {
       Assert.IsNull(res.error);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task ProjectWorkflowSchema() {
+      Assert.Inconclusive();
       await Core.IsJiraDev();
       var projectKey = "AMEX";
       var rm = RestMonad.Empty();
@@ -111,7 +117,9 @@ namespace Jira.Tests {
       await Rest.ProjectWorkflowSchemeSetAsync(projectId, workflowSchemeId);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task ProjectIssueTypeScreenScheme() {
+      Assert.Inconclusive();
       await Rest.IsJiraDev();
       var projectKey = "ACW";
       var schemeId = 12191;
@@ -121,7 +129,7 @@ namespace Jira.Tests {
     [TestMethod]
     [TestCategory("Manual")]
     public async Task FieldConfiguration() {
-      //Assert.Inconclusive();
+      Assert.Inconclusive();
       await Rest.IsJiraDev();
       var configName = "SR: Generic";
       var suffix = " " + Helpers.RandomStringUpper(4);

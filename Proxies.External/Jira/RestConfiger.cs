@@ -79,8 +79,8 @@ namespace Jira {
           tcs.SetException(exc);
         }
         try {
-          var pit = await rm.GetProjectIssueTypesAsync();
-          tcs2.SetResult(pit.Value);
+          var pit = await rm.GetProjectIssueTypesAsync().WithError();
+          tcs2.SetResult(pit.value.Value);
         }
         catch (Exception exc) {
           tcs2.SetException(exc);
@@ -113,8 +113,8 @@ namespace Jira {
       var x = pitws[project][issueType];
       return x
         .Counter(1
-        , new Exception(new { issueType, error = "No workflows found" } + "")
-        , new Exception(new { issueType, error = "Multiple workflows found", workflows = x.ToJson(false) } + ""))
+        , new Exception(new {project, issueType, error = "No workflows found" } + "")
+        , new Exception(new {project, issueType, error = "Multiple workflows found", workflows = x.ToJson(false) } + ""))
         .Single();
     }
     public static async Task<ILookup<string, string>> ResetIssueTypeWorkflows() {

@@ -163,7 +163,7 @@ namespace Jira {
     static Func<string, string> ProjectRolePath(string project, int roleId) { return UnrelatedPath("project/" + project + "/role/" + roleId); }
     static Func<string, string> ProjectIssueStatusesPath(string project) { return UnrelatedPath("project/" + project + "/statuses"); }
     static Func<string, string> ProjectComponentsPath(string project) { return UnrelatedPath("project/" + project.ToUpper() + "/components"); }
-    static Func<string, string> UsersPath(string user) { return UnrelatedPath($"user/search?startAt=0&maxResults=10000&includeInactive=false&username={user.IfEmpty(RestConfiger.UserWildcard)}"); }
+    static Func<string, string> UsersPath(string user, int maxResults) { return UnrelatedPath($"user/search?startAt=0&maxResults={maxResults}&includeInactive=false&username={user.IfEmpty(RestConfiger.UserWildcard)}"); }
     static Func<string, string> UserWithPermissionPath(string ticket, string user, string permission) {
       Passager.ThrowIf(() => permission.IsEmpty());
       return UnrelatedPath($"user/permission/search?username={user}&permissions={permission}&issueKey={ticket.ToUpper()}&startAt=0&maxResults=10000");
@@ -991,7 +991,7 @@ namespace Jira {
       var x = from users in RestMonad.Value.Select(u => User.FromKey(u.key).ToRestMonad(RestMonad).GetAsync())
               from u in users
               select u.Value;
-      return (await x).ToRestMonad(RestMonad);
+      return (await x).ToArray().ToRestMonad(RestMonad);
     }
     public static async Task<RestMonad<Json.User>> GetByUserNameAsync(this (RestMonad rm, string userName) user) =>
       await Json.User.FromUserName(user.userName).ToRestMonad(user.rm).GetAsync();
@@ -1020,15 +1020,16 @@ namespace Jira {
       var pathFactory = GroupAddUserPath(groupName);
       return (await RestMonad.PostAsync(() => pathFactory, RestMonad.Value, (hrm, json) => hrm.Switch<User>(null), null, false));
     }
-    public static async Task<RestMonad<User[]>> GetUsersAsync(this RestMonad RestMonad, string user = "") {
-      return await RestMonad.GetAsync<User[]>(UsersPath(user), null);
+    public static Task<RestMonad<User[]>> GetUsersAsync(this RestMonad RestMonad, string user = "") => RestMonad.GetUsersAsync(10000, user);
+    public static async Task<RestMonad<User[]>> GetUsersAsync(this RestMonad RestMonad, int maxResults, string user = "") {
+      return await RestMonad.GetAsync<User[]>(UsersPath(user,maxResults), null);
     }
-    public static async Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme) {
-      return await (
-        from rmUser in rme.GetUsersAsync()
+    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme) => rme.GetUsersWithGroups(10000);
+    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, int maxResults) =>
+      ( from rmUser in rme.GetUsersAsync(maxResults)
         from user in rmUser.GetAsync()
         select user);
-    }
+    
     public static async Task<RestMonad<User[]>> GetUsersWithPermission(this JiraTicket<string> jiraTicket, string user, string permission = "BROWSE") {
       return await jiraTicket.GetAsync<User[]>(UserWithPermissionPath(jiraTicket.Value, user, permission)
         , null, null
@@ -1583,7 +1584,7 @@ namespace Jira {
                from rm in key.ToJiraTicket().PostIssueTransitionAsync("Stop Progress", IssueClasses.Issue.DoCode(comment), false, null)
                select issue
                );
-      return pausedIssues;
+      return pausedIssues.ToArray();
     }
 
     public static async Task IsJiraDev() {

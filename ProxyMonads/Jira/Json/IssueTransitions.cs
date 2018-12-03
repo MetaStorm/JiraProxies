@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using CommonExtensions;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using System.Diagnostics;
 
 namespace Jira.Json {
   public class IssueTransitions {
@@ -32,9 +33,11 @@ namespace Jira.Json {
       public override string ToString() {
         Func<string> propsToString = () => {
           try {
+            if(PropertiesImpl.error != null) return "[error]";
             return "[" + Properties.Select(p => new { p.key, p.value } + "").Flatten() + "]";
           }
-          catch {
+          catch(Exception exc) {
+            Debug.WriteLine(exc);
             return "[error]";
           }
         };
@@ -47,9 +50,11 @@ namespace Jira.Json {
         return new { ticket, transition = string.IsNullOrWhiteSpace(name) ? new { id } : (object)new { name } } + "";
       }
       //public Workflow.Transition.Property[] Properties { get; set; } = new Workflow.Transition.Property[0];
-      public Workflow.Transition.Property[] Properties { get { return AsyncHelpers.RunSync(() => PropertiesGetter.Value); } }
+      public Workflow.Transition.Property[] Properties { get { return PropertiesImpl.value ?? new Workflow.Transition.Property[0]; } }
+      public (Workflow.Transition.Property[] value,Exception error) PropertiesImpl { get { return AsyncHelpers.RunSync(() => PropertiesGetter.Value); } }
       [JsonIgnore]
-      public Lazy<Task<Workflow.Transition.Property[]>> PropertiesGetter { get; set; } = new Lazy<Task<Workflow.Transition.Property[]>>(() => Task.FromResult(new Workflow.Transition.Property[0]));
+      public Lazy<Task<(Workflow.Transition.Property[] value,Exception error)>> PropertiesGetter { get; set; } 
+        = new Lazy<Task<(Workflow.Transition.Property[] value, Exception error)>>(() => Task.FromResult((new Workflow.Transition.Property[0],(Exception)null)));
 
       public static Transition Create(int id) {
         return new Transition { id = id };

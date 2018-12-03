@@ -48,8 +48,9 @@ namespace ProxiesTest {
     }
 
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task GetStringAsync_M() {
-      //Assert.Inconclusive();
+      Assert.Inconclusive();
       var jiraHost = "https://aliceice.atlassian.net/";
       var jiraUser = "admin";
       var jiraPassword = "1Aaaaaaa";

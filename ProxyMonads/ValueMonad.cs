@@ -208,22 +208,22 @@ namespace Wcf.ProxyMonads {
   }
   #endregion
 
-  public static class RestMonadExtensions {
-    public static RestMonad<TResult> Select<T, TResult>(this RestMonad<T> self, Func<T, TResult> selector) {
-      return selector(self.Value).ToRestMonad(self);
-    }
-    public static RestMonad<TResult> SelectMany<T, TA, TResult>(this RestMonad<T> self, Func<T, RestMonad<TA>> selector, Func<T, TA, TResult> resultSelector) {
-      var first = self.Value;
-      var second = selector(first).Value;
-      return resultSelector(first, second).ToRestMonad(self);
-    }
+  //public static class RestMonadExtensions {
+  //  public static RestMonad<TResult> Select<T, TResult>(this RestMonad<T> self, Func<T, TResult> selector) {
+  //    return selector(self.Value).ToRestMonad(self);
+  //  }
+  //  public static RestMonad<TResult> SelectMany<T, TA, TResult>(this RestMonad<T> self, Func<T, RestMonad<TA>> selector, Func<T, TA, TResult> resultSelector) {
+  //    var first = self.Value;
+  //    var second = selector(first).Value;
+  //    return resultSelector(first, second).ToRestMonad(self);
+  //  }
 
-    public static RestMonad<TResult> SelectMany<T, TResult>(this RestMonad<T> lazy, Func<T, RestMonad<TResult>> selector) {
-      return SelectMany(lazy, selector, (a, b) => b);
-    }
+  //  public static RestMonad<TResult> SelectMany<T, TResult>(this RestMonad<T> lazy, Func<T, RestMonad<TResult>> selector) {
+  //    return SelectMany(lazy, selector, (a, b) => b);
+  //  }
 
 
-  }
+  //}
 
   #region RestMonad<T>
   public class RestMonad<T> :RestMonad {
@@ -403,10 +403,11 @@ namespace Wcf.ProxyMonads {
       }
       if(client.BaseAddress == null) client.BaseAddress = client.Value.BaseAddress;
       CheckApiAddress(client, path);
-      Func<Task<HttpResponseMessage>> go = async () => doPut
-        ? await client.Value.PutAsync(client.ApiAddress, content)
-        : await client.Value.PostAsync(client.ApiAddress, content);
-      return client.Switch(await go());
+      var go = await( doPut
+        ? client.Value.PutAsync(client.ApiAddress, content)
+        : client.Value.PostAsync(client.ApiAddress, content)
+        );
+      return client.Switch(go);
     }
 
     private static void CheckApiAddress(RestMonad<HttpClient> client, string path) {

@@ -32,6 +32,7 @@ namespace Jira.Tests {
     }
 
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task GetTicketWithSessionID_M() {
       Assert.Inconclusive();
       RestMonad.UseSessionID = true;
@@ -167,6 +168,9 @@ namespace Jira.Tests {
       // Fast forward
       const string resolvedComment = "Issue been resolved";
       Trace.TraceInformation("{0}", new { ticket, transition = (await ticket.ToJiraTicket().PostIssueTransitionAsync(issue.Value.FastForwardTransitions().Single(), resolvedComment, null)).Value });
+
+      await jiraTicket.DeleteIssueAsync();
+      return;
 
       // Decrement counter
       await jiraTicket.ExecCountStep("", "Count Me Down");
@@ -307,7 +311,7 @@ namespace Jira.Tests {
       var customFields = new Dictionary<string, object> {
         { "Account Number","1111-000001" },
         { "SMS Phone","13057880763" },
-        { "Amount","$1.00" },
+        //{ "Amount","$1.00" },
         { "Beneficiary","Demo"}
       };
       var issue = await newIssue.ToJiraPost().PostIssueAsync(customFields);
@@ -480,8 +484,9 @@ namespace Jira.Tests {
       Assert.IsNotNull(search.Any());
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task CreateSUI_M() {
-      //Assert.Inconclusive("Manual test");
+      Assert.Inconclusive("Manual test");
       var emailSource = DateTime.Now.Subtract(DateTime.MinValue).TotalMilliseconds.ToString().Split('.');
       var accountNubmer = new string((DateTime.Now.Ticks + "").TakeLast(7).ToArray());
       var userEmail = "dimokdimon___cip01@gmail.com";
@@ -507,6 +512,7 @@ namespace Jira.Tests {
       Assert.AreEqual(fieldValue, fieldValue2);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task CustomFieldGet_M() {
       Assert.Inconclusive("For manual testing only");
       var fieldName = "Banker";
@@ -518,6 +524,7 @@ namespace Jira.Tests {
       Assert.AreEqual(fieldValue, fieldValue2);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task CustomFieldSet_M() {
       Assert.Inconclusive("For manual testing only");
       var fieldName = "CoSigner-1 eMail";
@@ -529,6 +536,7 @@ namespace Jira.Tests {
       Assert.AreEqual(fieldValue, fieldValue2);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task CustomFieldSetCheckbox_M() {
       Assert.Inconclusive("For manual testing only");
       var fieldName = "Tax Validation 6";
@@ -540,6 +548,7 @@ namespace Jira.Tests {
       Assert.AreEqual(fieldValue, fieldValue2);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task CustomFieldsSet_M() {
       Assert.Inconclusive("For manual testing only");
       var ticket = "BPM-1";// 668";
@@ -561,8 +570,9 @@ namespace Jira.Tests {
       });
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task CustomFieldEmpty_M() {
-      //Assert.Inconclusive("For manual testing only");
+      Assert.Inconclusive("For manual testing only");
       var fieldName = "Validation Status 6";
       var fieldValue = "";
       var ticket = "BPM-7";// 668";
@@ -572,8 +582,9 @@ namespace Jira.Tests {
       Assert.AreEqual(" ", fieldValue2);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task SetIssueType_M() {
-      //Assert.Inconclusive("For manual testing only");
+      Assert.Inconclusive("For manual testing only");
       var fieldName = "issuetype";
       var fieldValue = "Tax Form Validation";
       var ticket = "BPM-12";// 668";
@@ -587,7 +598,7 @@ namespace Jira.Tests {
       const string accountField = "Account Number";
       var custom = new Dictionary<string, object> {
         { accountField, "99999" },
-        {"Group Assignee","user-doc-miami" }
+        //{"Group Assignee","user-doc-miami" }
       };
       var issueTo = "Fix Data";
       const string project = "DIT";
@@ -609,12 +620,16 @@ namespace Jira.Tests {
       Assert.AreEqual(project, linked.fields.project.key);
       Assert.AreEqual(issueTo, linked.fields.issuetype.name);
       Assert.AreEqual(custom[accountField], linked.ExtractCustomField<string>(accountField).Single());
+
+      await jiraTicket.DeleteIssueAsync();
+      await linked.key.ToJiraTicket().DeleteIssueAsync();
     }
 
 
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task CloneIssue_M() {
-      //Assert.Inconclusive("For manual testing only");
+      Assert.Inconclusive("For manual testing only");
       var ticket = "CNG-2898";// 668";
       var custom = new Dictionary<string, object> {
         { "Required Hours", 5 }
@@ -627,6 +642,7 @@ namespace Jira.Tests {
       await issue2.Value.key.ToJiraTicket().PutIssueAsync(custom);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task AssigneePrevious_M() {
       Assert.Inconclusive("For manual testing only");
       var ticket = "DIT-392";// 668";
@@ -700,7 +716,9 @@ namespace Jira.Tests {
       Console.WriteLine(comment);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task PostWorklogByStatuses() {
+      Assert.Inconclusive();
       var ticket = "RQ-4146".ToJiraTicket();
       var worklogs = (await ticket.PostWorklogAsync("In Progress", "On Hold")).Value;
       Assert.IsTrue(worklogs.Any(), "No progress history");
@@ -714,6 +732,7 @@ namespace Jira.Tests {
     }
 
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task FindInProgressSubTasks_M() {
       Assert.Inconclusive("For manual testing only");
       var project = "RQ";
@@ -731,18 +750,19 @@ namespace Jira.Tests {
     }
     [TestMethod]
     public async Task PostComments() {
-      Assert.Fail("Hangs on transition properties error");
+      //Assert.Fail("Hangs on transition properties error");
       var issue = (await "AMF-54".ToJiraTicket().GetIssueAsync()).Value;
-      if(issue.fields.status.name.ToLower() == "closed") {
-        await issue.key.ToJiraTicket().PostIssueTransitionAsync("reopen", false);
+      if(issue.fields.status.name.ToLower() == "under review") {
+        await issue.key.ToJiraTicket().PostIssueTransitionAsync("Reject", "reopen", false, null);
         issue = (await issue.key.ToJiraTicket().GetIssueAsync()).Value;
       }
       var transition = "done";
+      var cts = issue.FindTransitionByNameOrProperty(transition, false).Counter(1, new Exception(new { transition, Transition = "not found", issue } + ""), null);
       (await (from closeTrans in issue.FindTransitionByNameOrProperty(transition, false).Counter(1, new Exception(new { transition, Transition = "not found", issue } + ""), null)
-              select issue.key.ToJiraTicket().PostIssueTransitionAsync(closeTrans, IssueClasses.Issue.DoCode("Closed by ICE", "white", "navy")).WithError()
+              from t in issue.key.ToJiraTicket().PostIssueTransitionAsync(closeTrans, IssueClasses.Issue.DoCode("Closed by ICE", "white", "navy")).WithError()
+              select t.value)
       )
-      .WhenAllSequiential()
-      ).ForEach(i => Console.WriteLine(i.value));
+      .ForEach(i => Console.WriteLine(i));
     }
 
     //[TestMethod]

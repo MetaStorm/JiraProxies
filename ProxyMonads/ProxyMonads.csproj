@@ -48,8 +48,8 @@
     <AssemblyOriginatorKeyFile>StrongNameKey.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CommonExtensions.Helpers, Version=2.5.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\CommonExtensions.Helpers.2.5.0\lib\net452\CommonExtensions.Helpers.dll</HintPath>
+    <Reference Include="CommonExtensions.Helpers, Version=2.5.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\CommonExtensions.Helpers.2.5.2\lib\net452\CommonExtensions.Helpers.dll</HintPath>
     </Reference>
     <Reference Include="CommonExtensions.TSql, Version=2.2.2.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\CommonExtensions.TSql.2.2.2\lib\net452\CommonExtensions.TSql.dll</HintPath>
@@ -69,8 +69,8 @@
     <Reference Include="Flurl.Http, Version=1.2.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Flurl.Http.1.2.0\lib\net45\Flurl.Http.dll</HintPath>
     </Reference>
-    <Reference Include="Foundation, Version=2.4.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Foundation.2.4.0\lib\net452\Foundation.dll</HintPath>
+    <Reference Include="Foundation, Version=2.5.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Foundation.2.5.1\lib\net452\Foundation.dll</HintPath>
     </Reference>
     <Reference Include="HtmlAgilityPack, Version=1.4.9.5, Culture=neutral, PublicKeyToken=bd319b19eaf3b43a, processorArchitecture=MSIL">
       <HintPath>..\packages\HtmlAgilityPack.1.4.9.5\lib\Net45\HtmlAgilityPack.dll</HintPath>

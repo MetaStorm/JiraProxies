@@ -35,9 +35,9 @@ namespace Proxies.ExternalTests {
       var itws = await RestConfiger.IssueTypeWorkflows;
       Assert.IsTrue(itws.Any(), $"{nameof(RestConfiger.IssueTypeWorkflows)} is empty");
       Console.WriteLine(itws.ToJson());
-      var project = "PIZ";// "ISD";
-      var issueType = "Order Pizza";// "Access";
-      var workflow = "Order Pizza";// "ISD - Access Request";
+      var project =  "HLP";
+      var issueType =  "Password Reset";
+      var workflow = "WorkFlowHD";
       var wf = await RestConfiger.ProjectIssueTypeWorkflow(project, issueType);
       Assert.AreEqual(workflow, wf);
       await ExceptionAssert.Propagates<Exception>(() => RestConfiger.ProjectIssueTypeWorkflow(project, "Task"), exc => {
@@ -49,6 +49,7 @@ namespace Proxies.ExternalTests {
       Assert.IsTrue((await RestConfiger.ResetIssueTypeWorkflows()).Any());
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task GetWorkflowSchemasProvider_M() {
       Assert.Inconclusive();
       RestConfiger.WorkflowSchemaIdsProvider = () => new[] { 10093 };
@@ -64,13 +65,16 @@ namespace Proxies.ExternalTests {
       Assert.IsTrue(statuses.Length > 0);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task ProjectIssueTypeWorkflow() {
+      Assert.Inconclusive();
       var rt = await RestConfiger.RunTestAsync(null);
       var pitw = ((IEnumerable<object>)((IDictionary<string, object>)((IDictionary<string, object>)rt)["Jira.RestConfiger"])["pitw"]).ToArray();
       Console.WriteLine(rt.ToJson());
     }
 
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task DeleteStatus_M() {
       Assert.Inconclusive();
       var js = await Rest.DeleteStatusAsync(11492);
@@ -102,6 +106,7 @@ namespace Proxies.ExternalTests {
       Assert.Fail();
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task PostStatus60_M() {
       Assert.Inconclusive();
       var status = "Review all client documents and IES transactions to confirm no contact has been made with client";
@@ -113,8 +118,9 @@ namespace Proxies.ExternalTests {
       await TestAlreadyExists(Rest.PostWorkflowAsync("jira", "Delete Me", ""));
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task DeleteWorkflow_M() {
-      //Assert.Inconclusive();
+      Assert.Inconclusive();
       var workflows = new[] {"WorkFlowHD",
 "WorkFlowCNG",
 "WorkFlowProjects",
@@ -539,7 +545,7 @@ namespace Proxies.ExternalTests {
     public async Task GetWorkflowShemeWorkflowAsync() {
       var ret = await RestMonad.Empty().GetWorkflowShemeWorkflowAsync(RestConfiger.WorkflowSchemaIds[0]);
       Console.WriteLine(ret.ToJson());
-      Assert.AreEqual(2, ret.Value.Count());
+      Assert.AreEqual(4, ret.Value.Count());
     }
   }
 }

@@ -27,8 +27,9 @@ namespace Proxies.ExternalTests {
       await Rest.ScreenDeleteByProject("PM");
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task ScreenDeleteById() {
-      //Assert.Inconclusive();
+      Assert.Inconclusive();
       await Rest.IsJiraDev();
       var screenIds = new[] {12316,
 12317,
@@ -260,7 +261,7 @@ namespace Proxies.ExternalTests {
 12714,
 12715
 };
-      foreach (var id in screenIds)
+      foreach(var id in screenIds)
         (await Rest.DeleteScreen(id).WithError()).SideEffect(t => {
           Debug.WriteLine(new { id, t.error, t.value });
         });
@@ -271,8 +272,9 @@ namespace Proxies.ExternalTests {
       Assert.IsTrue(screens.Length > 0);
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task ProjectDestroy() {
-      // Assert.Inconclusive("To be used manually destroy the project");
+      Assert.Inconclusive("To be used manually destroy the project");
       await Rest.IsJiraDev();
       var jo = await RestMonad.Empty().DestroyProjectAsync("AMEX");
       Console.WriteLine(jo.ToJson());
@@ -301,7 +303,8 @@ namespace Proxies.ExternalTests {
     [TestMethod]
     public async Task GetUsers() {
       var rme = RestMonad.Empty();
-      var users0 = await rme.GetUsersWithGroups();
+      var users0 = await rme.GetUsersWithGroups(10);
+      Assert.IsTrue(users0.Value.Any(), "users0.Any()");
       Console.WriteLine(users0.Value.ToJson(true, true));
       var users = users0.Value
         .Where(u => u != null)
@@ -322,7 +325,9 @@ namespace Proxies.ExternalTests {
     }
 
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task TicketTransitions() {
+      Assert.Inconclusive();
       var field = new Dictionary<string, object> {
         { "Accepted", "Yes" } ,
             { "Applications List", "Miami" }
@@ -369,7 +374,7 @@ namespace Proxies.ExternalTests {
 
 
 
-      transitions.ForEach(trans => trans.PropertiesGetter = LazyMe(() => Task.FromResult(new Workflow.Transition.Property[0])));
+      transitions.ForEach(trans => trans.PropertiesGetter = LazyMe(() => Task.FromResult((new Workflow.Transition.Property[0], (Exception)null))));
 
       await ticket.FillIssueTransitionProperties(transitions);
       Passager.ThrowIf(() => issue.SmsTransition(Rest.SmsValue.Next, true) == null);
@@ -409,19 +414,32 @@ namespace Proxies.ExternalTests {
       });
     }
     [TestMethod]
-    public async Task GetIssueAsync() {
-      var ticket = await "DP-1".ToJiraTicket().GetIssueAsync();
-      Trace.WriteLine(ticket);
-    }
-    [TestMethod]
+    [TestCategory("Manual")]
     public async Task FastForwardTransitions_M() {
+      Assert.Inconclusive();
       var ticket = (await "PIZ-109".ToJiraTicket().GetIssueAsync()).Value.FastForwardTransitions(false);
       Trace.TraceInformation(ticket.ToString());
     }
     [TestMethod]
+    [TestCategory("Manual")]
     public async Task SimpleTransition_M() {
-      var ticket = (await "BPM-75".ToJiraTicket().PostIssueTransitionAsync("done","Test transition",false,null)).Value;
-      Trace.TraceInformation(ticket.ToString());
+      Assert.Inconclusive();
+      await Core.IsJiraQA();
+      if(false) {
+        await "DIT-94609".ToJiraTicket().PostIssueTransitionAsync("done", IssueClasses.Issue.DoCode("Test by ICE", "white", "navy"), false, null);
+        return;
+      }
+      var newIssue = JiraNewIssue.Create("DIT", "Pershing - Link Discrepancy", "Pershing - Link Discrepancy" + ": ICE Test");
+      //var i = (await "DIT-94614".ToJiraTicket().GetIssueAsync());
+      //var closeTrans = i.Value.FindTransitionByNameOrProperty("done", false);
+      var issue = (await (from rm in newIssue.ToRestMonad().PostIssueAsync()
+                          from i in rm.GetIssueAsync()
+                          from closeTrans in i.Value.FindTransitionByNameOrProperty("done", false)
+                          from t in i.Value.key.ToJiraTicket().PostIssueTransitionAsync(closeTrans, IssueClasses.Issue.DoCode("Test by ICE", "white", "navy"))
+                          select i)).Single().Value;
+
+
+      Trace.TraceInformation(new { issue } + "");
     }
     [TestMethod]
     public async Task TransitionHistory_CreateIssue() {
@@ -466,7 +484,7 @@ namespace Proxies.ExternalTests {
             Assert.Inconclusive("No issues found to test for " + rm.Value.ToJson());
           }));
         Task.WaitAll(test.ToArray());
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         Trace.TraceInformation(exc.ToString());
         throw;
       }
