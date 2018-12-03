@@ -987,8 +987,11 @@ namespace Jira {
     public static async Task<RestMonad> DeleteAsync(this RestMonad<Json.Group> rm) {
       return await rm.DeleteAsync(GroupPath(rm.Value.name));
     }
-    public static async Task<RestMonad<User[]>> GetAsync(this RestMonad<User[]> RestMonad) {
-      var x = from users in RestMonad.Value.Select(u => User.FromKey(u.key).ToRestMonad(RestMonad).GetAsync())
+    public static Task<RestMonad<User[]>> GetAsync(this RestMonad<User[]> RestMonad) => RestMonad.GetAsync("");
+    public static async Task<RestMonad<User[]>> GetAsync(this RestMonad<User[]> RestMonad, string userName) {
+      var x = from users in RestMonad.Value
+                .Where(u=>userName.IsNullOrWhiteSpace() || u.name.ToLower() == userName.ToLower())
+                .Select(u => User.FromKey(u.key).ToRestMonad(RestMonad).GetAsync())
               from u in users
               select u.Value;
       return (await x).ToArray().ToRestMonad(RestMonad);
@@ -1025,9 +1028,11 @@ namespace Jira {
       return await RestMonad.GetAsync<User[]>(UsersPath(user,maxResults), null);
     }
     public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme) => rme.GetUsersWithGroups(10000);
-    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, int maxResults) =>
+    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, int maxResults) => rme.GetUsersWithGroups(maxResults, "");
+    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, string userName) => rme.GetUsersWithGroups(100000, userName);
+    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, int maxResults,string userName) =>
       ( from rmUser in rme.GetUsersAsync(maxResults)
-        from user in rmUser.GetAsync()
+        from user in rmUser.GetAsync(userName)
         select user);
     
     public static async Task<RestMonad<User[]>> GetUsersWithPermission(this JiraTicket<string> jiraTicket, string user, string permission = "BROWSE") {

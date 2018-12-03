@@ -301,6 +301,13 @@ namespace Proxies.ExternalTests {
       Assert.AreEqual(true, projectsLookup.Any());
     }
     [TestMethod]
+    public async Task RunTests() {
+      var rc = await RestConfiger.RunTestAsync(null);
+      Console.WriteLine(rc.ToJson());
+      rc = await Rest.RunTestAsync();
+      Console.WriteLine(rc.ToJson());
+    }
+    [TestMethod]
     public async Task GetUsers() {
       var rme = RestMonad.Empty();
       var users0 = await rme.GetUsersWithGroups(10);

@@ -33,14 +33,19 @@ namespace Jira {
           .SelectMany(x => x.Value.Select(y => new { project = x.Key, issueType = y.Key, workflows = y.ToArray() })).ToArray();
           var pitwsEmpty = pitws.Where(x => x.workflows.IsEmpty()).ToArray();
           Passager.ThrowIf(() => pitwsEmpty.Any(), " " + pitwsEmpty.ToJson());
-          var pitwsMany = pitws.Where(x => x.workflows.Length > 1).ToArray();
-          Passager.ThrowIf(() => pitwsMany.Any(), " " + pitwsMany.ToJson());
+          if(false) {
+            var issueTypeEx = new[] { "task", "sub-task" };
+            var pitwsMany = pitws.Where(x => x.workflows.Length > 1 && !issueTypeEx.Contains(x.issueType.ToLower())).ToArray();
+            Passager.ThrowIf(() => pitwsMany.Any(), " " + pitwsMany.ToJson());
+          }
         }
 
-        var users = (await (from rm in RestMonad.Empty().GetUsersWithGroups()
-                            from ug in rm.Value.Where(u => u.groups.items.Any(g => g.name == "jira-administrators"))
-                            select ug)
-                     ).ToArray();
+        var users = (await (
+          from rm in RestMonad.Empty().GetMySelfAsync()
+          from rm2 in rm.GetUsersWithGroups(rm.Value.name)
+          from ug in rm2.Value.Where(u => u.groups.items.Any(g => g.name == "jira-administrators"))
+          select ug)
+          ).ToArray();
         Passager.ThrowIf(() => users.IsEmpty());
         return new ExpandoObject().Merge(GetType().FullName, b.Merge(new { pitw, users }));
       }, o=> {
