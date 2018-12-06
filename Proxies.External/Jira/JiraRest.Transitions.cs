@@ -115,7 +115,7 @@ namespace Jira {
         ? restMonad.GetAsync<Workflow.Transition.Property[]>(WorkflowTransitionPropertiesPath(wfh.value, transition.SafeId()), null).WithError()
         : Task.FromResult((value: RestMonad.Create(new Workflow.Transition.Property[0], restMonad), wfh.error))
         select (rm.value?.Value, wfh.error ?? rm.error));
-      transition.PropertiesGetter = LazyMe(async () => (await l));
+      transition.PropertiesGetter = LazyMe(() => l);
       return transition;
       /*
       var props = await restMonad.GetAsync<Workflow.Transition.Property[]>(WorkflowTransitionPropertiesPath(await workflowName.Value, transition.SafeId()), null);
@@ -129,11 +129,10 @@ namespace Jira {
     public static async Task<RestMonad<string[]>> GetWorlflowSchemeIdsAsync(string jiraHost, string jiraUser, string jiraPassword) {
       return await new RestMonad(jiraHost, "", jiraUser, jiraPassword).GetWorlflowSchemeIdsAsync();
     }
-    public static async Task<RestMonad<string[]>> GetWorlflowSchemeIdsAsync(this RestMonad restMonad) {
-      return await restMonad.GetWorlflowSchemeIdsAsync("secure/admin/ViewWorkflowSchemes.jspa");
-    }
+    public static Task<RestMonad<string[]>> GetWorlflowSchemeIdsAsync(this RestMonad restMonad) =>
+      restMonad.GetWorlflowSchemeIdsAsync("secure/admin/ViewWorkflowSchemes.jspa");
     public static async Task<RestMonad<string[]>> GetWorlflowSchemeIdsAsync(this RestMonad restMonad, string xPath) {
-      var s = (await restMonad.GetStringAsync(xPath)).Value;
+      var s = (await restMonad.GetStringAsync_New(xPath)).Value;
       var doc = new HtmlDocument();
       doc.LoadHtml(s);
       var searchPath = "//tr/td/ul/li/a[contains(.,'Edit') and contains(@href,'EditWorkflow')]";
@@ -148,12 +147,26 @@ namespace Jira {
       return await restMonad.GetAsync<Workflow[]>(
         WorkflowPath(), onError);
     }
-    public static async Task<RestMonad<WorkflowSchemaWorkflow[][]>> GetWorkflowShemeWorkflowsAsync(this RestMonad restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<WorkflowSchemaWorkflow[]>> onError = null) {
+    public static async Task<RestMonad<WorkflowSchemaWorkflow[][]>> GetWorkflowShemeWorkflowsAsync_Old(this RestMonad restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<WorkflowSchemaWorkflow[]>> onError = null) {
       //var wsList = new List<WorkflowSchemaWorkflow[]>();
       var wfs = (await RestConfiger.WorkflowSchemaIds.Select(wsId => restMonad.GetWorkflowShemeWorkflowAsync(wsId, onError))
        .WhenAll())
        .Select(rm => rm.Value)
        .ToArray();
+      return wfs.ToRestMonad(restMonad);
+
+      //foreach (var wsId in RestConfiger.WorkflowSchemaIds)
+      //  wsList.Add((await restMonad.GetWorkflowShemeWorkflowAsync(wsId, onError)).Value);
+      //return  wsList.ToArray().ToRestMonad(restMonad);
+    }
+    public static async Task<RestMonad<WorkflowSchemaWorkflow[][]>> GetWorkflowShemeWorkflowsAsync(this RestMonad restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<WorkflowSchemaWorkflow[]>> onError = null) {
+      //var wsList = new List<WorkflowSchemaWorkflow[]>();
+      var wfs = (await
+        from wsids in RestConfiger.WorkflowSchemaIdsProvider.ThrowIf(workflowSchemaIdsProvider => workflowSchemaIdsProvider == null)
+        from wsId in wsids
+        from rm in restMonad.GetWorkflowShemeWorkflowAsync(wsId, onError)
+        select rm.Value
+        ).ToArray();
       return wfs.ToRestMonad(restMonad);
 
       //foreach (var wsId in RestConfiger.WorkflowSchemaIds)
@@ -272,7 +285,26 @@ namespace Jira {
         return issue.transitions.Where(t => t.name.ToLower() == transitionOrPropertyName.ToLower()).Counter(1).ToArray();
       } catch(Exception exc) {
         try {
-          return issue.FindTransitionByProperty(transitionOrPropertyName).Counter(1, _ => { throw new TransitionsException($"No '{transitionOrPropertyName}' transition found by property"); }, c => { throw new TooManyTransitionsException(issue); }).Select(t => t.Item1).ToArray();
+          return issue.FindTransitionByPropertySync(transitionOrPropertyName).Counter(1, _ => { throw new TransitionsException($"No '{transitionOrPropertyName}' transition found by property"); }, c => { throw new TooManyTransitionsException(issue); }).Select(t => t.Item1).ToArray();
+        } catch(TooManyTransitionsException) {
+          throw;
+        } catch(TransitionsException exc2) {
+          if(throwNotFound)
+            throw new AggregatedException(exc2, exc);
+          return new IssueTransitions.Transition[0];
+        }
+      }
+    }
+    public static async Task<IList<IssueTransitions.Transition>> FindTransitionByNameOrPropertyAsync(this IssueClasses.Issue issue, string transitionOrPropertyName, bool throwNotFound) {
+      var message = new { ticket = issue.key, status = issue.fields.status.name, transitionOrPropertyName, message = "Not found" } + "";
+      var axc = new List<Exception>();
+      try {
+        return issue.transitions.Where(t => t.name.ToLower() == transitionOrPropertyName.ToLower()).Counter(1).ToArray();
+      } catch(Exception exc) {
+        try {
+          return (await issue.FindTransitionByPropertyAsync(transitionOrPropertyName))
+            .Counter(1, _ => { throw new TransitionsException($"No '{transitionOrPropertyName}' transition found by property"); }, c => { throw new TooManyTransitionsException(issue); })
+            .Select(t => t.Item1).ToArray();
         } catch(TooManyTransitionsException) {
           throw;
         } catch(TransitionsException exc2) {
@@ -289,35 +321,43 @@ namespace Jira {
     public static IList<IssueTransitions.Transition> ErrorTransition(this IssueClasses.Issue issue, bool throwNotFound = true) {
       return issue.FindTransitionByNameOrProperty("error", throwNotFound);
     }
+    public static Task<IList<IssueTransitions.Transition>> ErrorTransitionAsync(this IssueClasses.Issue issue, bool throwNotFound = true) {
+      return issue.FindTransitionByNameOrPropertyAsync("error", throwNotFound);
+    }
     public static IList<IssueTransitions.Transition> NextTransition(this IssueClasses.Issue issue, bool throwNotFound = true) {
       return issue.FindTransitionByNameOrProperty("next", throwNotFound);
     }
-    public static IList<IssueTransitions.Transition> BackTransition(this IssueClasses.Issue issue, bool throwNotFound = true) {
-      return issue.FindTransitionByNameOrProperty("back", throwNotFound);
+    public static Task<IList<IssueTransitions.Transition>> NextTransitionAsync(this IssueClasses.Issue issue, bool throwNotFound = true) {
+      return issue.FindTransitionByNameOrPropertyAsync("next", throwNotFound);
     }
-    public static IList<IssueTransitions.Transition> YesTransition(this IssueClasses.Issue issue, bool throwNotFound = true) {
-      return issue.FindTransitionByNameOrProperty("yes", throwNotFound);
-    }
-    public static IList<IssueTransitions.Transition> NoTransition(this IssueClasses.Issue issue, bool throwNotFound = true) {
-      return issue.FindTransitionByNameOrProperty("no", throwNotFound);
-    }
-    public static IList<IssueTransitions.Transition> FastForwardTransitions(this IssueClasses.Issue issue, bool throwNotFound = true) {
-      return issue.FindTransitionByNameOrProperty("fastforward", throwNotFound);
-    }
-
-    private static IssueTransitions.Transition GetTransitionByPropertyName(this IssueClasses.Issue issue, string propertyName, Action<TransitionPropertyNotFound> error = null) {
-      return issue.TransitionByProperty(propertyName, "true", true, error);
-    }
+    public static IList<IssueTransitions.Transition> BackTransition(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+      issue.FindTransitionByNameOrProperty("back", throwNotFound);
+    public static Task<IList<IssueTransitions.Transition>> BackTransitionAsync(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+      issue.FindTransitionByNameOrPropertyAsync("back", throwNotFound);
+    public static IList<IssueTransitions.Transition> YesTransition(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+       issue.FindTransitionByNameOrProperty("yes", throwNotFound);
+    public static Task<IList<IssueTransitions.Transition>> YesTransitionAsync(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+       issue.FindTransitionByNameOrPropertyAsync("yes", throwNotFound);
+    public static IList<IssueTransitions.Transition> NoTransition(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+      issue.FindTransitionByNameOrProperty("no", throwNotFound);
+    public static Task<IList<IssueTransitions.Transition>> NoTransitionAsync(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+      issue.FindTransitionByNameOrPropertyAsync("no", throwNotFound);
+    public static IList<IssueTransitions.Transition> FastForwardTransitions(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+      issue.FindTransitionByNameOrProperty("fastforward", throwNotFound);
+    public static Task<IList<IssueTransitions.Transition>> FastForwardTransitionsAsync(this IssueClasses.Issue issue, bool throwNotFound = true) =>
+      issue.FindTransitionByNameOrPropertyAsync("fastforward", throwNotFound);
 
     public static IssueTransitions.Transition SmsTransition(this IssueClasses.Issue issue, SmsValue smsValue, bool throwNotFound) {
       return issue.SmsTransition(smsValue + "", throwNotFound);
     }
-    public static IssueTransitions.Transition SmsTransition(this IssueClasses.Issue issue, string smsValue, bool throwNotFound) {
-      return issue.TransitionByProperty("sms", smsValue, throwNotFound);
-    }
-    public static IEnumerable<IssueTransitions.Transition> SmsValueTransitions(this IssueClasses.Issue issue, string key, bool throwNotFound, Action<TransitionPropertyNotFound> error) {
-      return issue.TransitionsByProperty(key, "sms", throwNotFound, error);
-    }
+    public static IssueTransitions.Transition SmsTransition(this IssueClasses.Issue issue, string smsValue, bool throwNotFound) =>
+      issue.TransitionByProperty("sms", smsValue, throwNotFound);
+    public static Task<IssueTransitions.Transition> SmsTransitionAsync(this IssueClasses.Issue issue, string smsValue, bool throwNotFound) =>
+      issue.TransitionByPropertyAsync("sms", smsValue, throwNotFound, null);
+    public static IEnumerable<IssueTransitions.Transition> SmsValueTransitions(this IssueClasses.Issue issue, string key, bool throwNotFound, Action<TransitionPropertyNotFound> error) =>
+      issue.TransitionsByProperty(key, "sms", throwNotFound, error);
+    public static Task<IEnumerable<IssueTransitions.Transition>> SmsValueTransitionsAsync(this IssueClasses.Issue issue, string key, bool throwNotFound, Action<TransitionPropertyNotFound> error) =>
+      issue.TransitionsByPropertyAsync(key, "sms", throwNotFound, error);
 
     public static IssueTransitions.Transition TransitionByProperty(this IssueClasses.Issue issue, string propertyName, string propertyValue, bool throwNotFound) {
       return issue.TransitionByProperty(propertyName, propertyValue, throwNotFound, null);
@@ -330,7 +370,21 @@ namespace Jira {
         else
           throw exc;
       };
-      var finder = issue.FindTransitionByProperty(propertyName, propertyValue).Select(x => x.Item1);
+      var finder = issue.FindTransitionByPropertySync(propertyName, propertyValue).Select(x => x.Item1);
+      return !throwNotFound
+        ? finder
+        : finder
+        .Counter(1, noNextTransition, null);
+    }
+    public static async Task<IEnumerable<IssueTransitions.Transition>> TransitionsByPropertyAsync(this IssueClasses.Issue issue, string propertyName, string propertyValue, bool throwNotFound, Action<TransitionPropertyNotFound> error) {
+      Action<int> noNextTransition = _ => {
+        var exc = new TransitionPropertyNotFound(issue.key, propertyName, propertyValue);
+        if(error != null)
+          error(exc);
+        else
+          throw exc;
+      };
+      var finder = (await issue.FindTransitionByPropertyAsync(propertyName, propertyValue)).Select(x => x.Item1);
       return !throwNotFound
         ? finder
         : finder
@@ -345,7 +399,22 @@ namespace Jira {
         else
           throw exc;
       };
-      var finder = issue.FindTransitionByProperty(propertyName, propertyValue).Select(x => x.Item1);
+      var finder = issue.FindTransitionByPropertySync(propertyName, propertyValue).Select(x => x.Item1);
+      return !throwNotFound
+        ? finder.SingleOrDefault()
+        : finder
+        .Counter(1, noNextTransition, null)
+        .SingleOrDefault();
+    }
+    public static async Task<IssueTransitions.Transition> TransitionByPropertyAsync(this IssueClasses.Issue issue, string propertyName, string propertyValue, bool throwNotFound, Action<TransitionPropertyNotFound> error) {
+      Action<int> noNextTransition = _ => {
+        var exc = new TransitionPropertyNotFound(issue.key, propertyName, propertyValue);
+        if(error != null)
+          error(exc);
+        else
+          throw exc;
+      };
+      var finder = (await issue.FindTransitionByPropertyAsync(propertyName, propertyValue)).Select(x => x.Item1);
       return !throwNotFound
         ? finder.SingleOrDefault()
         : finder
@@ -353,10 +422,10 @@ namespace Jira {
         .SingleOrDefault();
     }
 
-    private static IEnumerable<Tuple<IssueTransitions.Transition, Workflow.Transition.Property>> FindTransitionByProperty(this IssueClasses.Issue issue, string name) {
-      return issue.FindTransitionByProperty(name, null);
+    private static Task<IEnumerable<Tuple<IssueTransitions.Transition, Workflow.Transition.Property>>> FindTransitionByProperty(this IssueClasses.Issue issue, string name) {
+      return issue.FindTransitionByPropertyAsync(name, null);
     }
-    private static IEnumerable<Tuple<IssueTransitions.Transition, Workflow.Transition.Property>> FindTransitionByProperty(this IssueClasses.Issue issue, string name, string value) {
+    private static IEnumerable<Tuple<IssueTransitions.Transition, Workflow.Transition.Property>> FindTransitionByPropertySync(this IssueClasses.Issue issue, string name, string value = null) {
       return issue.transitions == null
         ? new Tuple<IssueTransitions.Transition, Workflow.Transition.Property>[0]
         : issue.transitions
@@ -367,10 +436,23 @@ namespace Jira {
         .Where(x => x.ok)
         .Select(x => Tuple.Create(x.t, x.p));
     }
-    private static IEnumerable<Workflow.Transition.Property> FindTransitionProperty(this IssueClasses.Issue issue, string propertyName) {
+    private static async Task<IEnumerable<Tuple<IssueTransitions.Transition, Workflow.Transition.Property>>> FindTransitionByPropertyAsync(this IssueClasses.Issue issue, string name, string value = null) {
+      if(issue.transitions == null) return new Tuple<IssueTransitions.Transition, Workflow.Transition.Property>[0];
+
+      var x = (await (from t in issue.transitions
+                      from properties in t.PropertiesAsync
+                      from p in properties.ThrowIf(() => properties.error != null, properties.error + "").value?.Select(p => new { t, p, ok = p.Find(name, value) }).ToArray()
+                      select p
+                ))
+        .Where(a => a.ok)
+        .Select(a => Tuple.Create(a.t, a.p))
+        ;
+      return x;
+    }
+    private static async Task<IEnumerable<Workflow.Transition.Property>> FindTransitionProperty(this IssueClasses.Issue issue, string propertyName) {
       return issue.transitions == null
         ? new Workflow.Transition.Property[0]
-        : issue.FindTransitionByProperty(propertyName).Select(x => x.Item2);
+        : (await issue.FindTransitionByProperty(propertyName)).Select(x => x.Item2);
     }
     public static IEnumerable<Workflow.Transition.Property> FindProperty(this IssueTransitions.Transition t, string name) {
       return t.FindProperty(name, null);

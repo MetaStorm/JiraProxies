@@ -153,9 +153,14 @@ namespace Jira {
                          from bytes in rm.Value.Content.ReadAsStringAsync()
                          select bytes);
         return hrm.ToRestMonad(restMonad);
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         throw new Exception(new { path } + "", exc);
       }
+    }
+    public static Task<RestMonad<string>> GetStringAsync_New(this RestMonad restMonad, string path) {
+        return (from rm in restMonad.GetAsync(() => path)
+                from bytes in rm.Value.Content.ReadAsStringAsync()
+                select bytes.ToRestMonad(restMonad));
     }
     #endregion
 

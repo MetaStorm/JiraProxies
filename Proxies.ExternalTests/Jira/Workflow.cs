@@ -18,12 +18,9 @@ using System.Net;
 namespace Proxies.ExternalTests {
   [TestClass]
   public class WorkflowTest {
-    static int[] _workflowSchemeIds;
     [AssemblyInitialize]
     public static void AssemblyInit(TestContext context) {
-      _workflowSchemeIds = new RestMonad().GetWorlflowSchemeIdsAsync().GetAwaiter().GetResult().Value.Select(int.Parse).ToArray();
-      RestConfiger.WorkflowSchemaIdsProvider = () => _workflowSchemeIds;
-      RestConfiger.ProjectIssueTypeWorkflowProvider = RestConfiger.GetProjectIssueTypeWorkflowAsync;
+      RestConfiger.SetDefaultWorkflowProvider();
     }
     [TestMethod]
     public async Task GetWorkflows() {
@@ -52,7 +49,7 @@ namespace Proxies.ExternalTests {
     [TestCategory("Manual")]
     public async Task GetWorkflowSchemasProvider_M() {
       Assert.Inconclusive();
-      RestConfiger.WorkflowSchemaIdsProvider = () => new[] { 10093 };
+      RestConfiger.WorkflowSchemaIdsProvider = Task.FromResult( new[] { 10093 });
       Console.WriteLine((await RestConfiger.IssueTypeWorkflows).ToJson());
       var wf = await RestConfiger.IssueTypeWorkflows;
       Assert.AreEqual(4, wf.Count());
@@ -545,7 +542,7 @@ namespace Proxies.ExternalTests {
     public async Task GetWorkflowShemeWorkflowAsync() {
       var ret = await RestMonad.Empty().GetWorkflowShemeWorkflowAsync(RestConfiger.WorkflowSchemaIds[0]);
       Console.WriteLine(ret.ToJson());
-      Assert.AreEqual(4, ret.Value.Count());
+      Assert.AreEqual(45, ret.Value.Count());
     }
   }
 }

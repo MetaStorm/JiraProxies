@@ -757,7 +757,6 @@ namespace Jira.Tests {
         issue = (await issue.key.ToJiraTicket().GetIssueAsync()).Value;
       }
       var transition = "done";
-      var cts = issue.FindTransitionByNameOrProperty(transition, false).Counter(1, new Exception(new { transition, Transition = "not found", issue } + ""), null);
       (await (from closeTrans in issue.FindTransitionByNameOrProperty(transition, false).Counter(1, new Exception(new { transition, Transition = "not found", issue } + ""), null)
               from t in issue.key.ToJiraTicket().PostIssueTransitionAsync(closeTrans, IssueClasses.Issue.DoCode("Closed by ICE", "white", "navy")).WithError()
               select t.value)

@@ -11,15 +11,15 @@ using Wcf.ProxyMonads;
 namespace Jira {
   [JiraSettings]
   [JiraConfig]
-  public class RestConfiger : Foundation.Config<RestConfiger> {
+  public class RestConfiger :Foundation.Config<RestConfiger> {
     public static string UserWildcard => KeyValue() ?? ".";
     [Foundation.CustomConfig.ConfigValue]
     public static int[] WorkflowSchemaIds {
       get {
-        return WorkflowSchemaIdsProvider?.Invoke() ?? KeyValue<string>().Split(',').Select(int.Parse).ToArray();
+        return WorkflowSchemaIdsProvider?.GetAwaiter().GetResult() ?? KeyValue<string>().Split(',').Select(int.Parse).ToArray();
       }
     }
-    public static Func<int[]> WorkflowSchemaIdsProvider;
+    public static Task<int[]> WorkflowSchemaIdsProvider;
 
     protected override async Task<ExpandoObject> _RunTestAsync(ExpandoObject parameters, params Func<ExpandoObject, ExpandoObject>[] merge) {
       return await TestHostAsync(parameters, async (p, m) => {
@@ -48,9 +48,9 @@ namespace Jira {
           ).ToArray();
         Passager.ThrowIf(() => users.IsEmpty());
         return new ExpandoObject().Merge(GetType().FullName, b.Merge(new { pitw, users }));
-      }, o=> {
+      }, o => {
         var exc = o as Exception;
-        if (exc != null)
+        if(exc != null)
           ExceptionDispatchInfo.Capture(exc).Throw();
         else throw new Exception(o.ToJson());
       }, merge);
@@ -61,10 +61,26 @@ namespace Jira {
     public static Func<Task<Dictionary<string, ILookup<string, string>>>> ProjectIssueTypeWorkflowProvider {
       get { return _projectIssueTypeWorkflowProvider; }
       set {
-        if (_projectIssueTypeWorkflowProvider != null && _projectIssueTypeWorkflowProvider != value)
+        if(_projectIssueTypeWorkflowProvider != null && _projectIssueTypeWorkflowProvider != value)
           throw new Exception($"{nameof(ProjectIssueTypeWorkflowProvider)} is attempted to re-assign to {value}.");
         _projectIssueTypeWorkflowProvider = value;
       }
+    }
+    public static void SetDefaultWorkflowProvider() {
+      Task<(int[] value, Exception error)> init() {
+        var _workflowSchemeIds = new RestMonad().GetWorlflowSchemeIdsAsync();
+        Func<Task<int[]>> _WorkflowSchemaIdsProvider = async () => (await _workflowSchemeIds).Value.Select(int.Parse).ToArray();
+        return _WorkflowSchemaIdsProvider().WithError();
+      }
+      var tcs = new TaskCompletionSource<int[]>();
+      WorkflowSchemaIdsProvider = tcs.Task;
+      init().ContinueWith(t => {
+        if(t.Result.error != null)
+          tcs.SetException(t.Result.error);
+        tcs.SetResult(t.Result.value);
+      });
+      ProjectIssueTypeWorkflowProvider = GetProjectIssueTypeWorkflowAsync;
+
     }
     public static Task<ILookup<string, string>> IssueTypeWorkflows;
     public static Task<Dictionary<string, string[]>> ProjectIssueTypes;
@@ -79,15 +95,13 @@ namespace Jira {
         try {
           var itws = await FetchIssueTypeWorkflows(rm);
           tcs.SetResult(itws.Value);
-        }
-        catch (Exception exc) {
+        } catch(Exception exc) {
           tcs.SetException(exc);
         }
         try {
           var pit = await rm.GetProjectIssueTypesAsync().WithError();
           tcs2.SetResult(pit.value.Value);
-        }
-        catch (Exception exc) {
+        } catch(Exception exc) {
           tcs2.SetException(exc);
         }
       });
@@ -118,8 +132,8 @@ namespace Jira {
       var x = pitws[project][issueType];
       return x
         .Counter(1
-        , new Exception(new {project, issueType, error = "No workflows found" } + "")
-        , new Exception(new {project, issueType, error = "Multiple workflows found", workflows = x.ToJson(false) } + ""))
+        , new Exception(new { project, issueType, error = "No workflows found" } + "")
+        , new Exception(new { project, issueType, error = "Multiple workflows found", workflows = x.ToJson(false) } + ""))
         .Single();
     }
     public static async Task<ILookup<string, string>> ResetIssueTypeWorkflows() {

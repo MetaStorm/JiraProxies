@@ -33,10 +33,10 @@ namespace Jira.Json {
       public override string ToString() {
         Func<string> propsToString = () => {
           try {
-            if(PropertiesImpl.error != null) return "[error]";
+            if(!PropertiesAsync.IsCompleted) return "[in progress]";
+            if(PropertiesImpl.error != null) return $"[error: {PropertiesImpl.error.ToMessages()}]";
             return "[" + Properties.Select(p => new { p.key, p.value } + "").Flatten() + "]";
-          }
-          catch(Exception exc) {
+          } catch(Exception exc) {
             Debug.WriteLine(exc);
             return "[error]";
           }
@@ -51,10 +51,11 @@ namespace Jira.Json {
       }
       //public Workflow.Transition.Property[] Properties { get; set; } = new Workflow.Transition.Property[0];
       public Workflow.Transition.Property[] Properties { get { return PropertiesImpl.value ?? new Workflow.Transition.Property[0]; } }
-      public (Workflow.Transition.Property[] value,Exception error) PropertiesImpl { get { return AsyncHelpers.RunSync(() => PropertiesGetter.Value); } }
+      public (Workflow.Transition.Property[] value, Exception error) PropertiesImpl { get { return AsyncHelpers.RunSync(() => PropertiesGetter.Value); } }
+      public Task<(Workflow.Transition.Property[] value, Exception error)> PropertiesAsync { get { return PropertiesGetter.Value; } }
       [JsonIgnore]
-      public Lazy<Task<(Workflow.Transition.Property[] value,Exception error)>> PropertiesGetter { get; set; } 
-        = new Lazy<Task<(Workflow.Transition.Property[] value, Exception error)>>(() => Task.FromResult((new Workflow.Transition.Property[0],(Exception)null)));
+      public Lazy<Task<(Workflow.Transition.Property[] value, Exception error)>> PropertiesGetter { get; set; }
+        = new Lazy<Task<(Workflow.Transition.Property[] value, Exception error)>>(() => Task.FromResult((new Workflow.Transition.Property[0], (Exception)null)));
 
       public static Transition Create(int id) {
         return new Transition { id = id };

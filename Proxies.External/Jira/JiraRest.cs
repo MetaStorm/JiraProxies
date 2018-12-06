@@ -458,7 +458,7 @@ namespace Jira {
     static async Task<RestMonad<IssueTransitions.Transition>[]> CounterGoNext(this JiraTicket<string> jiraTicket, Func<int, int, bool> goNextCondition, string comment = "", string field = ERROR_COUNT_FIELD, string transitionProperty = "counter-up") {
       var issue = (await jiraTicket.GetIssueAsync()).Value;
       var execCount = issue.ExtractCustomField<int>(field).Single();
-      return (await issue.FindTransitionByProperty(transitionProperty)
+      return (await (await issue.FindTransitionByProperty(transitionProperty))
         .Select(t => new { t = t.Item1, p = t.Item2 })
         .Select(async x => {
           var goNextValue = int.Parse(x.p.value);
@@ -483,7 +483,7 @@ namespace Jira {
     public static async Task<RestMonad<IssueTransitions.Transition>[]> ExecCountStep(this JiraTicket<string> jiraTicket, string counterName, string comment) {
       var transPropName = "counter" + (!string.IsNullOrWhiteSpace(counterName) ? "-" + counterName : "");
       var issue = (await jiraTicket.GetIssueAsync()).Value;
-      var transPropValue = issue.FindTransitionProperty(transPropName)
+      var transPropValue = (await issue.FindTransitionProperty(transPropName))
         .Counter(1, new Exception(new { ticket = jiraTicket, transPropName, message = "Not found" } + ""), null)
         .Single();
       var transPropValueInt = 0;

@@ -430,7 +430,7 @@ namespace Proxies.ExternalTests {
     [TestMethod]
     [TestCategory("Manual")]
     public async Task SimpleTransition_M() {
-      Assert.Inconclusive();
+      //Assert.Inconclusive();
       await Core.IsJiraQA();
       if(false) {
         await "DIT-94609".ToJiraTicket().PostIssueTransitionAsync("done", IssueClasses.Issue.DoCode("Test by ICE", "white", "navy"), false, null);
@@ -441,12 +441,32 @@ namespace Proxies.ExternalTests {
       //var closeTrans = i.Value.FindTransitionByNameOrProperty("done", false);
       var issue = (await (from rm in newIssue.ToRestMonad().PostIssueAsync()
                           from i in rm.GetIssueAsync()
-                          from closeTrans in i.Value.FindTransitionByNameOrProperty("done", false)
-                          from t in i.Value.key.ToJiraTicket().PostIssueTransitionAsync(closeTrans, IssueClasses.Issue.DoCode("Test by ICE", "white", "navy"))
+                          let jt = i.Value.key.ToJiraTicket()
+                          from closeTrans in i.Value.FindTransitionByNameOrProperty("next", false)
+                          from t in jt.PostIssueTransitionAsync(closeTrans, IssueClasses.Issue.DoCode("Test by ICE", "white", "navy"))
+                          from d in t.Through(_ => i.Value.key.ToJiraTicket().SideEffect(key => Trace.TraceInformation(new { deleting = key } + "")).DeleteIssueAsync())
                           select i)).Single().Value;
 
 
       Trace.TraceInformation(new { issue } + "");
+    }
+    [TestMethod]
+    [TestCategory("Manual")]
+    public async Task SimpleTransitionAsync_M() {
+      //Assert.Inconclusive();
+      await Core.IsJiraQA();
+      var newIssue = JiraNewIssue.Create("DIT", "Pershing - Link Discrepancy", "Pershing - Link Discrepancy" + ": ICE Test");
+      var tuple = (await (from rm in newIssue.ToRestMonad().PostIssueAsync()
+                          from i in rm.GetIssueAsync()
+                          let issue = i.Value
+                          let jt = issue.key.ToJiraTicket()
+                          from closeTrans in issue.FindTransitionByNameOrPropertyAsync("next", false)
+                          from ct in closeTrans
+                          from t in jt.PostIssueTransitionAsync(ct, IssueClasses.Issue.DoCode("Test by ICE", "white", "navy"))
+                          from d in i.Value.key.ToJiraTicket().SideEffect(key => Trace.TraceInformation(new { deleting = key, t = t.Value } + "")).DeleteIssueAsync()
+                          select new { i = i.Value, t = t.Value })).Single();
+
+      Trace.TraceInformation(new { tuple } + "");
     }
     [TestMethod]
     public async Task TransitionHistory_CreateIssue() {
