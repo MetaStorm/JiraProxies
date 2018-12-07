@@ -96,11 +96,26 @@ namespace Jira.Tests {
       //Assert.Inconclusive("Manually run");
       await Core.IsJiraDev();
       var res = await (
-        from dp in RestMonad.Empty().ProjectCleanWorkflowsAsync("ACW").WithError()
-        select dp
+        from dps in RestMonad.Empty().ProjectCleanWorkflowsAsync("ACW")
+        from dp in dps
+        select dp.Value
         .SideEffect(se => Console.WriteLine(se.ToJson())));
       Console.WriteLine(res);
-      Assert.IsNull(res.error);
+    }
+    [TestMethod]
+    [TestCategory("Dev")]
+    [TestCategory("Manual")]
+    [TestCategory("Project")]
+    public async Task ProjectSetFefaultWorkflow_M() {
+      //Assert.Inconclusive("Manually run");
+      await Core.IsJiraDev();
+      var projectKey = "ACW";
+      var res = await (
+        from dps in RestMonad.Empty().ProjectCleanWorkflowsAsync(projectKey, new[] { "" })
+        from dp in dps
+        select dp.Value
+        .SideEffect(se => Console.WriteLine(se.ToJson())));
+      Console.WriteLine(res);
     }
     [TestMethod]
     [TestCategory("Manual")]

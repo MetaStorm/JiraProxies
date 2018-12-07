@@ -143,9 +143,12 @@ namespace Jira {
       }
       return edits.Select(link => link.Attributes["href"].Value.Split('?')[1].Split('=')[1]).ToArray().ToRestMonad();
     }
-    public static async Task<RestMonad<Workflow[]>> GetWorkflows(this RestMonad restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<Workflow[]>> onError = null) {
-      return await restMonad.GetAsync<Workflow[]>(
-        WorkflowPath(), onError);
+    public static Task<RestMonad<Workflow[]>> GetWorkflows(this RestMonad restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<Workflow[]>> onError = null)
+      => restMonad.GetWorkflows(null, onError);
+    public static async Task<RestMonad<Workflow[]>> GetWorkflows(this RestMonad restMonad,string workflowName, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<Workflow[]>> onError = null) {
+      RestMonad<Workflow[]> Handler( RestMonad<HttpResponseMessage> hrm, string json) 
+        => Core.Return<Workflow[]>(hrm,json.TrimStart().StartsWith("[")?json:$"[{json}]");
+      return await restMonad.GetAsync(WorkflowPath(workflowName), Handler, onError, null);
     }
     public static async Task<RestMonad<WorkflowSchemaWorkflow[][]>> GetWorkflowShemeWorkflowsAsync_Old(this RestMonad restMonad, Func<RestMonad<HttpResponseMessageException>, RestErrorType, RestMonad<WorkflowSchemaWorkflow[]>> onError = null) {
       //var wsList = new List<WorkflowSchemaWorkflow[]>();

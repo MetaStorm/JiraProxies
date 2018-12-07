@@ -92,8 +92,8 @@ namespace Jira {
     #region Delete
     async public static Task<RestMonad<HttpResponseMessage>> DeleteAsync(this RestMonad restMonad, Func<string> pathFactory) {
       Guard.NotNull(() => restMonad, restMonad);
-      using (var client = HttpClientFactory(restMonad.BuildCustomClientFactory())) {
-        return (await RestExtenssions.DeleteAsync(client.ToRestMonad(restMonad),pathFactory()));
+      using(var client = HttpClientFactory(restMonad.BuildCustomClientFactory())) {
+        return (await RestExtenssions.DeleteAsync(client.ToRestMonad(restMonad), pathFactory()));
       }
     }
     async public static Task<RestMonad<HttpResponseMessage>> DeleteAsync(this RestMonad restMonad, string path) {
@@ -133,7 +133,7 @@ namespace Jira {
     }
     async public static Task<RestMonad<HttpResponseMessage>> GetAsync(this RestMonad restMonad, Func<string> pathFactory) {
       Guard.NotNull(() => restMonad, restMonad);
-      using (var client = HttpClientFactory(restMonad.BuildCustomClientFactory())) {
+      using(var client = HttpClientFactory(restMonad.BuildCustomClientFactory())) {
         return (await client.ToRestMonad(restMonad).GetAsync(pathFactory()));
       }
     }
@@ -143,7 +143,7 @@ namespace Jira {
                          from bytes in rm.Value.Content.ReadAsByteArrayAsync()
                          select bytes);
         return hrm.ToRestMonad(restMonad);
-      } catch (Exception exc) {
+      } catch(Exception exc) {
         throw new Exception(new { path } + "", exc);
       }
     }
@@ -158,16 +158,16 @@ namespace Jira {
       }
     }
     public static Task<RestMonad<string>> GetStringAsync_New(this RestMonad restMonad, string path) {
-        return (from rm in restMonad.GetAsync(() => path)
-                from bytes in rm.Value.Content.ReadAsStringAsync()
-                select bytes.ToRestMonad(restMonad));
+      return (from rm in restMonad.GetAsync(() => path)
+              from bytes in rm.Value.Content.ReadAsStringAsync()
+              select bytes.ToRestMonad(restMonad));
     }
     #endregion
 
     #region Post
     public static async Task<string> PostFormAsync(string requestUri) => await PostFormAsync(requestUri, new Dictionary<string, string>());
     public static async Task<string> PostFormAsync(string requestUri, Dictionary<string, string> values) {
-      using (var client = new HttpClient()) {
+      using(var client = new HttpClient()) {
         client.BaseAddress = new Uri(JiraMonad.JiraServiceBaseAddress());
         client.InitBasicAuthenticationHeader(JiraMonad.JiraPowerUser(), JiraMonad.JiraPowerPassword());
         client.DefaultRequestHeaders.Accept.Clear();
@@ -178,14 +178,14 @@ namespace Jira {
         requestContent.Headers.ContentType.CharSet = "UTF-8";
         requestContent.Headers.Add("X-Atlassian-Token", "no-check");
         return await (await from h in client.PostAsync(requestUri, requestContent)
-            select h.HandleExecutedAsync((r, json) => {
-              var errors = RestMonad.ParseJspError(json);
-              errors.Where(error => error.Contains("name already exists"))
-              .ForEach(error =>
-                throw new HttpResponseMessageException(r, json, r.RequestMessage.RequestUri + "", error, null) { ResponseErrorType = ResponceErrorType.AlreadyExists });
-              if (errors.IsEmpty())
-                return json;
-              throw new Exception(errors.Flatten("\n"));
+                            select h.HandleExecutedAsync((r, json) => {
+                              var errors = RestMonad.ParseJspError(json);
+                              errors.Where(error => error.Contains("name already exists"))
+                              .ForEach(error =>
+                                throw new HttpResponseMessageException(r, json, r.RequestMessage.RequestUri + "", error, null) { ResponseErrorType = ResponceErrorType.AlreadyExists });
+                              if(errors.IsEmpty())
+                                return json;
+                              throw new Exception(errors.Flatten("\n"));
                             }, null, null));
       }
     }
@@ -214,7 +214,7 @@ namespace Jira {
     }
     public class MyFormUrlEncodedContent :ByteArrayContent {
       public MyFormUrlEncodedContent(IEnumerable<KeyValuePair<string, string>> nameValueCollection)
-          : base(MyFormUrlEncodedContent.GetContentByteArray(nameValueCollection)) {
+          : base(MyFormUrlEncodedContent.GetContentByteArray(nameValueCollection ?? new KeyValuePair<string, string>[0])) {
         base.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
       }
       private static byte[] GetContentByteArray(IEnumerable<KeyValuePair<string, string>> nameValueCollection) {
@@ -243,7 +243,7 @@ namespace Jira {
     public static async Task<RestMonad<HttpResponseMessage>> PostAsync(this RestMonad post, Func<string> pathFactory, object jPost, JsonSerializerSettings settings, bool doPut) {
       string json = JsonConvert.SerializeObject(jPost, settings);
       var content = json.ContentFactory();
-      using (var client = HttpClientFactory(post.BuildCustomClientFactory()))
+      using(var client = HttpClientFactory(post.BuildCustomClientFactory()))
         return await client.ToRestMonad(post).
           PostAsync(pathFactory(), content, doPut);
     }
@@ -262,7 +262,7 @@ namespace Jira {
     #endregion
 
     async public static Task<RestMonad<HttpResponseMessage>> GetIssueAsync(this JiraTicket<string> ticket, Func<string, string> ticketPathFactory) {
-      using (var client = HttpClientFactory(ticket.BuildCustomClientFactory()))
+      using(var client = HttpClientFactory(ticket.BuildCustomClientFactory()))
         return (await client.ToRestMonad(ticket).GetAsync(ticketPathFactory(ticket.Value)));
     }
     /// <summary>
@@ -277,12 +277,12 @@ namespace Jira {
     async public static Task<JiraTicket<HttpResponseMessage>> PostIssueAsync<T>(this JiraTicket<string> ticket, Func<string, string> ticketPathFactory, T postObject, JsonSerializerSettings jsonSettings = null) {
       var settings = jsonSettings ?? RestMonad.JsonSerializerSettingsFactory();
       var content = JsonConvert.SerializeObject(postObject, settings).ContentFactory();
-      using (var client = HttpClientFactory(ticket.BuildCustomClientFactory()))
+      using(var client = HttpClientFactory(ticket.BuildCustomClientFactory()))
         return (await client.ToRestMonad(ticket).PostAsync(ticketPathFactory(ticket.Value), content, false))
           .Transform<JiraTicket<HttpResponseMessage>>();
     }
 
-    public static RestMonad<TOut> ReturnDebug<TOut>(RestMonad<HttpResponseMessage> responseMonad, string json) 
+    public static RestMonad<TOut> ReturnDebug<TOut>(RestMonad<HttpResponseMessage> responseMonad, string json)
       => Return<TOut>(responseMonad, json);
     public static RestMonad<TOut> Return<TOut>(RestMonad<HttpResponseMessage> responseMonad, string json) { return responseMonad.CastJson<TOut>(json); }
     static RestMonad<TOut> CastJson<TOut>(this RestMonad<HttpResponseMessage> responseMonad, string json) { return responseMonad.Switch(JsonConvert.DeserializeObject<TOut>(json)); }
@@ -295,24 +295,24 @@ namespace Jira {
       var address = new { response.Value.RequestMessage.RequestUri } + "\n";
       try {
         response.Value.EnsureSuccessStatusCode();
-      } catch (Exception exc) {
-        if (string.IsNullOrWhiteSpace(json)) {
+      } catch(Exception exc) {
+        if(string.IsNullOrWhiteSpace(json)) {
           var url = response.Value.RequestMessage != null && response.Value.RequestMessage.RequestUri != null
             ? response.Value.RequestMessage.RequestUri.OriginalString
             : response.FullAddress();
-          if (!string.IsNullOrWhiteSpace(url)) {
+          if(!string.IsNullOrWhiteSpace(url)) {
             var rex = new HttpResponseMessageException(response.Value, "", url + "", exc.Message, exc);
-            if (onError == null) throw rex;
+            if(onError == null) throw rex;
             return onError(response.Switch(rex), RestErrorType.Http);
           }
           throw;
         }
-        if (handleNotFound != null && response.Value.StatusCode == System.Net.HttpStatusCode.NotFound) {
+        if(handleNotFound != null && response.Value.StatusCode == System.Net.HttpStatusCode.NotFound) {
           try {
             var jObject = Newtonsoft.Json.JsonConvert.DeserializeObject(json) as Newtonsoft.Json.Linq.JObject;
             var sc = jObject["status-code"];
-            if (sc == null) return handleNotFound(response, json);
-          } catch(Exception hxc)when(! (hxc is HttpResponseMessageException)){
+            if(sc == null) return handleNotFound(response, json);
+          } catch(Exception hxc) when(!(hxc is HttpResponseMessageException)) {
             throw;
           }
         }
@@ -320,15 +320,15 @@ namespace Jira {
         try {
           errorMessage = JiraMonad.ParseJiraError(json);
         } catch { }
-        if (string.IsNullOrWhiteSpace(errorMessage))
+        if(string.IsNullOrWhiteSpace(errorMessage))
           try {
             errorMessage = RestMonad.ParseError(json);
           } catch { }
-        if (string.IsNullOrWhiteSpace(errorMessage))
+        if(string.IsNullOrWhiteSpace(errorMessage))
           errorMessage = json;
         {
           var rex = new HttpResponseMessageException(response.Value, json, address, errorMessage, exc);
-          if (onError == null) {
+          if(onError == null) {
             throw rex;
           }
           return onError(response.Switch(rex), RestErrorType.Json);
@@ -342,38 +342,38 @@ namespace Jira {
       var address = new { response.RequestMessage.RequestUri } + "\n";
       try {
         response.EnsureSuccessStatusCode();
-      } catch (Exception exc) {
-        if (string.IsNullOrWhiteSpace(json)) {
+      } catch(Exception exc) {
+        if(string.IsNullOrWhiteSpace(json)) {
           var url = response.RequestMessage != null && response.RequestMessage.RequestUri != null
             ? response.RequestMessage.RequestUri.OriginalString
             : response + "";
-          if (!string.IsNullOrWhiteSpace(url)) {
+          if(!string.IsNullOrWhiteSpace(url)) {
             var rex = new HttpResponseMessageException(response, "", url + "", exc.Message, exc);
-            if (onError == null) throw rex;
+            if(onError == null) throw rex;
             return onError(rex, RestErrorType.Http);
           }
           throw;
         }
-        if (handleNotFound != null && response.StatusCode == System.Net.HttpStatusCode.NotFound) {
+        if(handleNotFound != null && response.StatusCode == System.Net.HttpStatusCode.NotFound) {
           try {
             var jObject = Newtonsoft.Json.JsonConvert.DeserializeObject(json) as Newtonsoft.Json.Linq.JObject;
             var sc = jObject["status-code"];
-            if (sc == null) return handleNotFound(response, json);
+            if(sc == null) return handleNotFound(response, json);
           } catch { }
         }
         string errorMessage = "";
         try {
           errorMessage = JiraMonad.ParseJiraError(json);
         } catch { }
-        if (string.IsNullOrWhiteSpace(errorMessage))
+        if(string.IsNullOrWhiteSpace(errorMessage))
           try {
             errorMessage = RestMonad.ParseError(json);
           } catch { }
-        if (string.IsNullOrWhiteSpace(errorMessage))
+        if(string.IsNullOrWhiteSpace(errorMessage))
           errorMessage = json;
         {
           var rex = new HttpResponseMessageException(response, json, address, errorMessage, exc);
-          if (onError == null) {
+          if(onError == null) {
             throw rex;
           }
           return onError(rex, RestErrorType.Json);

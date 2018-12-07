@@ -112,7 +112,12 @@ namespace Proxies.ExternalTests {
 
     [TestMethod]
     public async Task PostWorkflow() {
-      await TestAlreadyExists(Rest.PostWorkflowAsync("jira", "Delete Me", ""));
+      await Core.IsJiraDev();
+      var workflowName = "TEST: " + Helpers.RandomStringUpper(6);
+      var xml = await Rest.GetWorkflowXmlAsync("AST: Task Management Workflow");
+      await Rest.PostWorkflowAsync(workflowName, "Delete Me", xml);
+      await TestAlreadyExists(Rest.PostWorkflowAsync(workflowName, "Delete Me", ""));
+      await Rest.DeleteWorkflowAsync(workflowName);
     }
     [TestMethod]
     [TestCategory("Manual")]

@@ -135,7 +135,9 @@ namespace Jira {
     static Func<string, string> MySelfPath(params Tuple<string, string>[] urlParams) { return UnrelatedPath("myself", urlParams); }
     static Func<string, string> SearchPath(params Tuple<string, string>[] urlParams) { return UnrelatedPath("search", urlParams); }
     static Func<string, string> IssueLinkPath() { return UnrelatedPath("issueLink"); }
-    static Func<string, string> WorkflowPath() { return UnrelatedPath("workflow"); }
+    static Func<string, string> WorkflowPath(string name) {
+      return UnrelatedPath("workflow" + (name.IsNullOrWhiteSpace() ? "" : $"?workflowName={WebUtility.UrlEncode(name)}"));
+    }
     static Func<string, string> WorkflowSchemaWorkflowsPath(int id) { return UnrelatedPath($"workflowscheme/{id}/workflow"); }
     static Func<string, string> WorkflowTransitionPropertiesPath(string workflowName, int transitionId) {
       return UnrelatedPath("workflow/transitions/" + transitionId + "/properties", Tuple.Create("workflowName", workflowName));
@@ -329,6 +331,11 @@ namespace Jira {
       var requestUri = "secure/admin/AddStatus.jspa";
       await Core.PostFormAsync(requestUri, values);
       return new { name, description, category } + "";
+    }
+    public static async Task<string> GetWorkflowXmlAsync(string name) {
+      var requestUri = "secure/admin/workflows/ViewWorkflowXml.jspa?workflowMode=live&workflowName=" + System.Net.WebUtility.UrlEncode(name);
+      var xml = await new RestMonad(new Uri(JiraServiceBaseAddress())).GetStringAsync(requestUri);
+      return xml.Value;
     }
     public static async Task<string> PostWorkflowAsync(string name, string description, string workflowXML) {
       var values = new Dictionary<string, string> {
@@ -990,7 +997,7 @@ namespace Jira {
     public static Task<RestMonad<User[]>> GetAsync(this RestMonad<User[]> RestMonad) => RestMonad.GetAsync("");
     public static async Task<RestMonad<User[]>> GetAsync(this RestMonad<User[]> RestMonad, string userName) {
       var x = from users in RestMonad.Value
-                .Where(u=>userName.IsNullOrWhiteSpace() || u.name.ToLower() == userName.ToLower())
+                .Where(u => userName.IsNullOrWhiteSpace() || u.name.ToLower() == userName.ToLower())
                 .Select(u => User.FromKey(u.key).ToRestMonad(RestMonad).GetAsync())
               from u in users
               select u.Value;
@@ -1025,16 +1032,16 @@ namespace Jira {
     }
     public static Task<RestMonad<User[]>> GetUsersAsync(this RestMonad RestMonad, string user = "") => RestMonad.GetUsersAsync(10000, user);
     public static async Task<RestMonad<User[]>> GetUsersAsync(this RestMonad RestMonad, int maxResults, string user = "") {
-      return await RestMonad.GetAsync<User[]>(UsersPath(user,maxResults), null);
+      return await RestMonad.GetAsync<User[]>(UsersPath(user, maxResults), null);
     }
     public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme) => rme.GetUsersWithGroups(10000);
     public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, int maxResults) => rme.GetUsersWithGroups(maxResults, "");
     public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, string userName) => rme.GetUsersWithGroups(100000, userName);
-    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, int maxResults,string userName) =>
-      ( from rmUser in rme.GetUsersAsync(maxResults)
-        from user in rmUser.GetAsync(userName)
-        select user);
-    
+    public static Task<RestMonad<User[]>> GetUsersWithGroups(this RestMonad rme, int maxResults, string userName) =>
+      (from rmUser in rme.GetUsersAsync(maxResults)
+       from user in rmUser.GetAsync(userName)
+       select user);
+
     public static async Task<RestMonad<User[]>> GetUsersWithPermission(this JiraTicket<string> jiraTicket, string user, string permission = "BROWSE") {
       return await jiraTicket.GetAsync<User[]>(UserWithPermissionPath(jiraTicket.Value, user, permission)
         , null, null
@@ -1091,7 +1098,7 @@ namespace Jira {
 
     public static Task<IList<RestMonad<string>>> ProjectCleanWorkflowsAsync(this RestMonad rm, string projectKey, string keyPhrase = "DELETE_WF")
       => rm.ProjectCleanWorkflowsAsync(projectKey, new string[0], keyPhrase);
-    public static Task<IList<RestMonad<string>>> ProjectCleanWorkflowsAsync(this RestMonad rm, string projectKey,string issueTypeToClean, string keyPhrase = "DELETE_WF")
+    public static Task<IList<RestMonad<string>>> ProjectCleanWorkflowsAsync(this RestMonad rm, string projectKey, string issueTypeToClean, string keyPhrase = "DELETE_WF")
       => rm.ProjectCleanWorkflowsAsync(projectKey, new[] { issueTypeToClean }, keyPhrase);
     public static async Task<IList<RestMonad<string>>> ProjectCleanWorkflowsAsync(this RestMonad rm, string projectKey, IList<string> issueTypesToClean, string keyPhrase = "DELETE_WF") {
       var project = (await rm.GetProjectAsync(projectKey)).Value;
@@ -1103,13 +1110,20 @@ namespace Jira {
                       )).WhenAllSequiential(); ;
       // Map Workflow to IssueType
       var defaultWorkflow = projectKey + ": Task Management Workflow";
+      var dwfExists = (await RestMonad.Empty().GetWorkflows(defaultWorkflow)).Value.Any();
+      if(!dwfExists) {
+        var twf = "ACO: Task Management Workflow";
+        var xml = await GetWorkflowXmlAsync(twf);
+        await Rest.PostWorkflowAsync(defaultWorkflow, "", xml);
+      }
       var issueTypes = project.issueTypes.AsEnumerable();
       if(issueTypesToClean?.Count > 0)
         issueTypes = (from it in issueTypes
                       join itd in issueTypesToClean on it.name equals itd
                       select it);
-      return await (from it in issueTypes
-                    select rm.WorkflowIssueTypeAttach(projectKey, it.name, defaultWorkflow)
+      await ProjectIssueTypeAddOrDelete(projectKey, "Sub-task");
+      return await (from it in issueTypes.Select(it => it.name).Concat(new[] { "" }).Distinct()
+                    select rm.WorkflowIssueTypeAttach(projectKey, it, defaultWorkflow)
                      ).WhenAllSequiential();
     }
     public static Task<RestMonad<HttpResponseMessage>> DeleteProjectAsync(this RestMonad RestMonad, string projectKey) =>

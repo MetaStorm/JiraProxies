@@ -157,7 +157,7 @@ namespace Jira {
         { "Associate", "Associate" }
       };
       var requestUri = "/secure/project/SelectProjectWorkflowSchemeStep2!default.jspa";
-      var html  = await Core.PostFormAsync(requestUri, values);
+      var html = await Core.PostFormAsync(requestUri, values);
       return html;
     }
     public static Task<RestMonad<Json.ProjectConfigResponse>> ProjectWorkflowShemeGetAsync(this RestMonad rm, string projectKey) =>
@@ -166,6 +166,8 @@ namespace Jira {
       return await rm.PostAsync<Json.ProjectConfigResponse>(() => WorkflowScheme(projectKey) + "?_" + DateTime.Now.Ticks, new { });
     }
     static async Task<RestMonad<ProjectConfigResponse>> WorkflowIssueTypeDraftMap(this RestMonad rm, string projectKey, string issueTypeName, string workflowName) {
+      if(issueTypeName.IsNullOrWhiteSpace())
+        return await rm.WorkflowIssueTypeDraftMap_Default(projectKey, workflowName);
       var issueTypeId = (await rm.GetIssueTypeAsync(issueTypeName)).Value.id;
       var request = new {
         name = workflowName,
@@ -173,6 +175,18 @@ namespace Jira {
       };
       var r = await rm.PostAsync<Json.ProjectConfigResponse>(() => Rest.DraftWorkflowScheme(projectKey), request, true);
       return r;
+    }
+    static async Task<RestMonad<ProjectConfigResponse>> WorkflowIssueTypeDraftMap_Default(this RestMonad rm, string projectKey, string workflowName) {
+      var p = (await rm.ProjectWorkflowShemeGetAsync(projectKey));
+      var wfsId = p.Value.parentId;
+      var request = new {
+        workflow = workflowName,
+        defaultWorkflow = true,
+        issueTypes = new string[0]
+      };
+      var rmPut = new RestMonad(JiraMonad.JiraServiceBaseAddress(), "", JiraMonad.JiraPowerUser(), JiraMonad.JiraPowerPassword());
+      var r = await rmPut.PostAsync<object>(() => $"rest/globalconfig/latest/workflowschemeeditor/{wfsId}", request, true);
+      return (await rm.ProjectWorkflowShemeGetAsync(projectKey));
     }
 
     static async Task<RestMonad<string>> WorkflowIssueTypeDraftSubmit(this RestMonad rm, string projectKey, int draftWorkflowSchemaId) {
