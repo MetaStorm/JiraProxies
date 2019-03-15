@@ -100,7 +100,10 @@ namespace Jira {
         }
         try {
           var pit = await rm.GetProjectIssueTypesAsync().WithError();
-          tcs2.SetResult(pit.value.Value);
+          if(pit.error != null)
+            tcs2.SetException(pit.error);
+          else
+            tcs2.SetResult(pit.value.Value);
         } catch(Exception exc) {
           tcs2.SetException(exc);
         }
