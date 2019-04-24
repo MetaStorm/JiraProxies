@@ -128,6 +128,12 @@ namespace Jira {
     #endregion
 
     #region Get Issue RelatedAsync
+    public static async Task<RestMonad<byte[][]>> GetAttachment(this RestMonad<IssueClasses.Issue> issue, string fileName) {
+      var x = await (from c in issue.Value.fields.attachment.Where(a => a.id == fileName || a.filename.ToLower() == fileName.ToLower()).Select(a => a.content)
+                     from b in issue.GetBytesAsync(c)
+                     select b.Value);
+      return issue.Switch(x.ToArray());
+    }
     public static async Task<RestMonad<HttpResponseMessage>> GetIssueRelatedAsync(this JiraTicket<string> ticket, Func<string, string, string> pathFactory) {
       return (await ticket.GetIssueAsync(t => pathFactory(t, ticket.ApiAddress)));
     }

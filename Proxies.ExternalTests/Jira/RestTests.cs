@@ -676,8 +676,18 @@ namespace Jira.Tests {
     }
     [TestMethod]
     public async Task GetAttachement() {
-      var issue = (await "DIT-257".ToJiraTicket().GetIssueAsync()).Value;
-      Assert.IsTrue(issue.fields.attachment?.Count > 0);
+      await GetAttachement("AMX.zip");
+      await GetAttachement("51090");
+    }
+    public async Task GetAttachement(string attachment) {
+      await Core.IsJiraDev();
+      var ticket = "EDOC-1";// "DIT-257";
+      var bytes = await (from issue in ticket.ToJiraTicket().GetIssueAsync()
+                   from b in issue.GetAttachment(attachment)
+                   select b.Value);
+      Assert.AreEqual(1, bytes.Count());
+      Assert.AreNotEqual(0, bytes[0].Count());
+      //Assert.IsTrue(issue.fields.attachment?.Count > 0);
     }
     //[TestMethod]
     //public async Task PostWorklogIfDone() {

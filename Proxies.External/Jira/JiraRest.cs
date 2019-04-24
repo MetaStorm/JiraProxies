@@ -1249,15 +1249,18 @@ namespace Jira {
     public static async Task<RestMonad<Role>> GetProjectRoleAsync(this RestMonad rest, string project, int roleId) {
       return await rest.GetAsync<Role>(ProjectRolePath(project, roleId), null);
     }
-    public static async Task<RestMonad<Role[]>> ProjectRolePostAsync(this RestMonad rest, string project, string roleName, params string[] groupName) {
+    public static Task<RestMonad<Role[]>> ProjectRolePostAsync(this RestMonad rest, string project, string roleName, params string[] groupName)
+    => rest.ProjectRolePostAsync(project, roleName, true, groupName);
+    public static async Task<RestMonad<Role[]>> ProjectRolePostAsync(this RestMonad rest, string project, string roleName, bool IsGroup, params string[] groupName) {
       var x = await (await (from roles in rest.RolesGetAsync(roleName)
-                            from role in roles.Value.Select(role => roles.ProjectRolePostAsync(project, role.id, groupName))
+                            from role in roles.Value.Select(role => roles.ProjectRolePostAsync(project, role.id, IsGroup, groupName))
                             select role
        )).WhenAllSequiential();
       return x.SingleOrDefault()?.Switch(x.Select(rm => rm.Value).ToArray()) ?? new Role[0].ToRestMonad();
     }
-    public static async Task<RestMonad<Role>> ProjectRolePostAsync(this RestMonad rest, string project, int roleId, params string[] groupName) {
-      return await rest.PostAsync(() => ProjectRoleByIdPath(project, roleId), new { group = groupName }, Core.Return<Role>);
+    static async Task<RestMonad<Role>> ProjectRolePostAsync(this RestMonad rest, string project, int roleId,bool IsGroup, params string[] actorName) {
+      object post = IsGroup ? new { group = actorName } : (object)new { user = actorName };
+      return await rest.PostAsync(() => ProjectRoleByIdPath(project, roleId), post, Core.Return<Role>);
     }
     public static async Task<RestMonad<Role[]>> ProjectRolesRemoveMemberAsync(this RestMonad rest, string project, string roleName, string member) {
       var x = await (await (
